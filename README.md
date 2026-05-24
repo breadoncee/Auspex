@@ -13,6 +13,10 @@ Disk · RAM · CPU · Network · Battery · Temperatures — at a glance, with a
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-Swift%206.2-orange?logo=swift)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+[![Download Auspex](https://img.shields.io/badge/⬇%20Download-Auspex.zip-2ea44f?style=for-the-badge)](https://github.com/breadoncee/Auspex/releases/latest/download/Auspex.zip)
+
+**[⬇ Download the latest release](https://github.com/breadoncee/Auspex/releases/latest/download/Auspex.zip)** · [All releases](https://github.com/breadoncee/Auspex/releases)
+
 </div>
 
 ---
@@ -55,7 +59,7 @@ _Tip: drop a panel screenshot at `docs/panel.png` and uncomment the line above t
 
 ### Option A — Download (no Xcode needed)
 
-1. Grab `Auspex-<version>.zip` from the [**Releases**](../../releases) page and unzip it.
+1. **[Download Auspex.zip](https://github.com/breadoncee/Auspex/releases/latest/download/Auspex.zip)** (always the newest release) and unzip it. _(Or pick a specific version from the [Releases](../../releases) page.)_
 2. Move **Auspex.app** to your `/Applications` folder.
 3. Because the app is open-source and **not signed with a paid Apple Developer ID**, macOS
    Gatekeeper will quarantine it on first launch. Clear it with one command:

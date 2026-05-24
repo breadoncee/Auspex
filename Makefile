@@ -45,9 +45,12 @@ release:
 
 dist: release
 	@mkdir -p $(DIST_DIR)
-	@rm -f "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip"
+	@rm -f "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip" "$(DIST_DIR)/$(APP_NAME).zip"
 	ditto -c -k --keepParent "$(RELEASE_PRODUCT)" "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip"
-	@echo "\nPackaged: $(DIST_DIR)/$(APP_NAME)-$(VERSION).zip  (upload this to a GitHub Release)"
+	@# Stable filename so README's "latest release" download link never changes.
+	cp "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip" "$(DIST_DIR)/$(APP_NAME).zip"
+	@echo "\nPackaged: $(DIST_DIR)/$(APP_NAME)-$(VERSION).zip and $(DIST_DIR)/$(APP_NAME).zip"
+	@echo "Upload BOTH to the GitHub Release (the stable $(APP_NAME).zip powers the latest-download link)."
 
 install: release
 	@pkill -f "/Applications/$(APP_NAME).app" 2>/dev/null || true
