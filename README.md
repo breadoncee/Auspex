@@ -160,6 +160,10 @@ Tools/                       icon/glyph generators + a CLI verification harness
   thermal state. Every other metric uses stable, public APIs.
 - **Not sandboxed** — it's a personal/local utility, not an App Store app.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the version history.
+
 ## Contributing
 
 Issues and PRs welcome. Run `make run` to build locally; `Tools/main.swift` is a CLI harness
