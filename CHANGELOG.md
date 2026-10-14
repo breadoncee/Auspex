@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Added a remembered appearance setting: Follow macOS (default), Light, or Dark, applied to the panel and Settings.
+- Prominent temperature card directly below the overview, showing CPU/SoC average, hottest sensor, and expandable individual readings in °C.
+- Rebuilt the panel around a CPU/memory overview, readable native surfaces, larger text, visible scrolling, and expandable core, storage and sensor details.
+- Added accessible metric descriptions, Reduce Motion/Transparency support, and a manual refresh button.
+- Clarified refresh/energy settings and surface login-item errors and approval state.
+- Keep macOS 26 compatibility and verify runtime collection on macOS 27.0.1.
+
+### Fixed
+- Memory Used now equals its displayed app, wired and compressed components; reclaimable file cache is excluded from the resident app estimate.
+- Network rates use 64-bit per-interface counters and monotonic time, preventing overflow and interface-change spikes. Totals describe observed traffic.
+- Temperature rows use unique registry IDs. Private temperature symbols resolve at runtime, allowing a thermal-state fallback if an OS update removes them.
+- Bounded sampling prevents queued refresh work. Slow collectors use elapsed-time cadences, idle polling only collects the menu bar metric, and sleep/wake resets rate baselines.
+- Disk free-space queries fall back to ordinary capacity. Battery reads select the internal source and support nested macOS capacity data, restoring health readings.
+- Initial CPU baselines and unavailable network readings no longer appear as real zero-percent or zero-traffic readings.
+
+### Added
+- `make local` builds a runnable app with Command Line Tools when full Xcode is unavailable.
+- `make verify` runs collector and lifecycle regression checks.
+
 ## [1.0.0] - 2026-05-24
 
 ### Added

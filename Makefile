@@ -14,16 +14,23 @@ PROJECT   = Auspex.xcodeproj
 CONFIG   ?= Debug
 BUILD_DIR = build
 DIST_DIR  = dist
-VERSION  ?= 1.0
+VERSION  ?= 1.1.0
 PRODUCT   = $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app
 RELEASE_PRODUCT = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 
 # Ad-hoc sign ("Sign to Run Locally") — no Apple Developer account required.
 SIGN_FLAGS = CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
-.PHONY: all build run release dist install clean icon project check-tools
+.PHONY: all build run release dist install clean icon project check-tools local verify
 
 all: build
+
+# These work with the macOS 26+ Command Line Tools SDK; no full Xcode needed.
+local:
+	Tools/build-local.sh
+
+verify:
+	Tools/verify.sh
 
 check-tools:
 	@command -v xcodegen >/dev/null 2>&1 || { \

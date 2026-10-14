@@ -1,51 +1,45 @@
-//
-//  IOHID-Bridging.h
-//  ResourceMonitor
-//
-//  Declarations for the *private* parts of the IOHIDEventSystemClient API
-//  used to read on-die temperature sensors. The client/service TYPES and
-//  several functions (CopyServices, CopyProperty) are already public in the
-//  SDK, so we import those headers and declare ONLY the private symbols here:
-//  the matching-capable Create, SetMatching, CopyEvent, GetFloatValue, plus
-//  the IOHIDEvent type and the temperature event-type constant.
-//
-//  Apple Silicon exposes no public temperature API; this is the same approach
-//  used by Stats.app / fermion-star/apple_sensors. Private API — may break on
-//  future macOS releases. ThermalCollector guards every call and degrades to
-//  ProcessInfo.thermalState when no sensors are returned.
-//
-
 #ifndef IOHID_Bridging_h
 #define IOHID_Bridging_h
 
 #import <Foundation/Foundation.h>
-#import <IOKit/hidsystem/IOHIDEventSystemClient.h>   // public: IOHIDEventSystemClientRef, CopyServices, CopyProperty
-#import <IOKit/hidsystem/IOHIDServiceClient.h>        // public: IOHIDServiceClientRef, CopyProperty, ConformsTo
+#import <IOKit/hidsystem/IOHIDEventSystemClient.h>
+#import <IOKit/hidsystem/IOHIDServiceClient.h>
+#include <dlfcn.h>
+#include <math.h>
 
-// Temperature HID event type (note: function-like macros are NOT imported into
-// Swift, so the field selector is computed Swift-side as type << 16).
 #define kIOHIDEventTypeTemperature 15
-
-// Private event handle type (no public typedef exists).
 typedef struct CF_BRIDGED_TYPE(id) __IOHIDEvent * IOHIDEventRef;
 
-// --- Private functions (not present in the public SDK) ---
+// Resolve private symbols at runtime. Missing symbols on a new macOS version
+// must disable temperature readouts, never prevent the entire app launching.
+static inline IOHIDEventSystemClientRef _Nullable
+AuspexHIDClientCreate(CFAllocatorRef _Nullable allocator) {
+    typedef IOHIDEventSystemClientRef (*Function)(CFAllocatorRef);
+    Function function = (Function)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+    return function ? function(allocator) : NULL;
+}
 
-// Matching-capable client (public SDK only ships CreateSimpleClient).
-CF_EXPORT IOHIDEventSystemClientRef _Nullable
-IOHIDEventSystemClientCreate(CFAllocatorRef _Nullable allocator);
+static inline bool AuspexHIDSetMatching(IOHIDEventSystemClientRef _Nonnull client,
+                                      CFDictionaryRef _Nonnull match) {
+    typedef void (*Function)(IOHIDEventSystemClientRef, CFDictionaryRef);
+    Function function = (Function)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientSetMatching");
+    if (!function) return false;
+    function(client, match);
+    return true;
+}
 
-CF_EXPORT void
-IOHIDEventSystemClientSetMatching(IOHIDEventSystemClientRef _Nonnull client,
-                                  CFDictionaryRef _Nonnull match);
+static inline IOHIDEventRef _Nullable
+AuspexHIDCopyEvent(IOHIDServiceClientRef _Nonnull service, int64_t type,
+                  int32_t options, int64_t timeout) {
+    typedef IOHIDEventRef (*Function)(IOHIDServiceClientRef, int64_t, int32_t, int64_t);
+    Function function = (Function)dlsym(RTLD_DEFAULT, "IOHIDServiceClientCopyEvent");
+    return function ? function(service, type, options, timeout) : NULL;
+}
 
-CF_EXPORT IOHIDEventRef _Nullable
-IOHIDServiceClientCopyEvent(IOHIDServiceClientRef _Nonnull service,
-                            int64_t type,
-                            int32_t options,
-                            int64_t timeout);
+static inline double AuspexHIDTemperature(IOHIDEventRef _Nonnull event, int32_t field) {
+    typedef double (*Function)(IOHIDEventRef, int32_t);
+    Function function = (Function)dlsym(RTLD_DEFAULT, "IOHIDEventGetFloatValue");
+    return function ? function(event, field) : NAN;
+}
 
-CF_EXPORT double
-IOHIDEventGetFloatValue(IOHIDEventRef _Nonnull event, int32_t field);
-
-#endif /* IOHID_Bridging_h */
+#endif

@@ -1,352 +1,289 @@
-//
-//  PanelView.swift
-//  Auspex
-//
-//  The popover content shown when the menu bar icon is clicked. A vibrant,
-//  glassy column of metric cards over a softly gradient-washed material.
-//
-
 import SwiftUI
 
 struct PanelView: View {
     @Environment(SystemMonitor.self) private var monitor
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var showCores = false
+    @State private var showAllVolumes = false
+    @State private var showSensors = false
+
+    private var panelHeight: CGFloat {
+        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+        return min(740, max(360, (screen?.visibleFrame.height ?? 800) - 36))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            Divider()
             ScrollView {
-                GlassEffectContainer(spacing: 11) {
-                    VStack(spacing: 11) {
-                        cpuSection
-                        memorySection
-                        diskSection
-                        networkSection
-                        if monitor.battery.isPresent { batterySection }
-                        thermalSection
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
+                VStack(spacing: 12) {
+                    overview
+                    thermalSection
+                    networkSection
+                    diskSection
+                    if monitor.battery.isPresent { batterySection }
+                    cpuSection
+                    memorySection
                 }
+                .padding(16)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.automatic)
+            Divider()
             footer
         }
-        .frame(width: 340)
-        .frame(maxHeight: 660)
-        .fontDesign(.rounded)
+        .frame(width: 400, height: panelHeight)
         .background {
-            ZStack {
-                Rectangle().fill(.ultraThinMaterial)
-                LinearGradient(
-                    colors: [Palette.cpu.opacity(0.12), .clear, Palette.memory.opacity(0.12)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [.clear, Palette.thermal.opacity(0.06)],
-                    startPoint: .top, endPoint: .bottom
-                )
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Rectangle().fill(.regularMaterial)
             }
-            .ignoresSafeArea()
         }
     }
-
-    // MARK: Header / footer
 
     private var header: some View {
         HStack(spacing: 10) {
             AuspexMark(weight: 0.16)
-                .foregroundStyle(.white)
-                .frame(width: 18, height: 15)
-                .frame(width: 30, height: 30)
-                .background(
-                    LinearGradient(
-                        colors: [Palette.cpu, Palette.memory],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
-                .shadow(color: Palette.cpu.opacity(0.45), radius: 5, y: 2)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Auspex")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                Text("System vitals")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
+                .foregroundStyle(Palette.cpu)
+                .frame(width: 24, height: 20)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Auspex").font(.system(size: 18, weight: .semibold))
+                Text(macOSVersion)
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
-            Spacer()
-            thermalPill
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 4) {
+                Label(monitor.lastUpdated == nil ? "Starting" : "Live", systemImage: "circle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(monitor.lastUpdated == nil ? Color.secondary : Color.green)
+                Text("Every \(monitor.refreshInterval.formatted(.number.precision(.fractionLength(0...1))))s")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 13)
-        .padding(.bottom, 9)
+        .padding(16)
     }
 
-    private var thermalPill: some View {
-        let c = Thresholds.thermalColor(monitor.thermal.thermalState)
-        return HStack(spacing: 5) {
-            Circle()
-                .fill(c)
-                .frame(width: 6, height: 6)
-                .shadow(color: c.opacity(0.8), radius: 3)
-            Text(monitor.thermal.thermalState.label)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .glassEffect(.regular, in: Capsule())
+    private var macOSVersion: String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
-            SettingsLink {
-                footerLabel("Settings", "gearshape")
+            SettingsLink { Label("Settings", systemImage: "gearshape") }
+                .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
+                .keyboardShortcut(",", modifiers: .command)
+                .help("Open Auspex settings")
+            Button { monitor.refreshNow() } label: {
+                Image(systemName: "arrow.clockwise")
             }
-            .buttonStyle(.plain)
-            .onTapGesture { NSApp.activate(ignoringOtherApps: true) }
-
+            .disabled(monitor.isCollecting)
+            .accessibilityLabel("Refresh all readings")
+            .help("Refresh all readings now")
             Spacer()
-
-            Button {
-                NSApp.terminate(nil)
-            } label: {
-                footerLabel("Quit", "power")
-            }
-            .buttonStyle(.plain)
+            Button("Quit", systemImage: "power") { NSApp.terminate(nil) }
+                .keyboardShortcut("q", modifiers: .command)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .controlSize(.regular)
+        .padding(.horizontal, 16).padding(.vertical, 12)
     }
 
-    private func footerLabel(_ title: String, _ symbol: String) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 5)
-            .glassEffect(.regular, in: Capsule())
+    private var overview: some View {
+        HStack(spacing: 12) {
+            summary("CPU", symbol: "cpu", value: "\(monitor.cpu.totalPercent)%",
+                    detail: "Overall load", fraction: monitor.cpu.total, tint: Palette.cpu, ready: monitor.cpu.isReady)
+            summary("Memory", symbol: "memorychip", value: "\(monitor.memory.usedPercent)%",
+                    detail: "\(Fmt.bytes(monitor.memory.used)) · \(monitor.memory.pressure.label)", fraction: monitor.memory.usedFraction,
+                    tint: Palette.memory, ready: monitor.memory.isReady)
+        }
     }
 
-    // MARK: Sections
+    private func summary(_ title: String, symbol: String, value: String,
+                         detail: String, fraction: Double, tint: Color, ready: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol).font(.subheadline.weight(.medium)).foregroundStyle(tint)
+            Text(ready ? value : "—")
+                .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(ready ? detail : "Reading…")
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            CapacityBar(fraction: fraction, color: tint, height: 5)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14).glassCard()
+        .accessibilityElement(children: .combine)
+    }
 
     private var cpuSection: some View {
-        MetricSection("CPU", systemImage: "cpu", tint: Palette.cpu) {
-            valueBadge("\(monitor.cpu.totalPercent)%", Thresholds.usageColor(monitor.cpu.total))
+        MetricSection("CPU activity", systemImage: "waveform.path", tint: Palette.cpu) {
+            Text("\(monitor.cpu.perCore.count) cores").font(.caption).foregroundStyle(.secondary)
         } content: {
-            VStack(spacing: 10) {
-                HStack(alignment: .center, spacing: 14) {
-                    GaugeColumn(fraction: monitor.cpu.total,
-                                centerText: "\(monitor.cpu.totalPercent)%",
-                                caption: "Load")
-                    if !monitor.cpu.perCore.isEmpty {
-                        CPUCoreGrid(perCore: monitor.cpu.perCore,
-                                    coreKinds: monitor.cpu.coreKinds)
-                    }
-                }
-                Sparkline(values: monitor.cpuHistory, color: Palette.cpu, fixedMax: 1.0)
-                    .frame(height: 26)
-            }
+            Sparkline(values: monitor.cpuHistory, color: Palette.cpu, fixedMax: 1).frame(height: 30)
+                .accessibilityLabel("CPU usage history")
+                .accessibilityValue("Current usage \(monitor.cpu.totalPercent) percent")
+            DisclosureGroup("Per-core usage", isExpanded: $showCores) {
+                CPUCoreGrid(perCore: monitor.cpu.perCore, coreKinds: monitor.cpu.coreKinds)
+                    .padding(.top, 8)
+            }.font(.caption)
         }
     }
 
     private var memorySection: some View {
-        let m = monitor.memory
+        let memory = monitor.memory
         return MetricSection("Memory", systemImage: "memorychip", tint: Palette.memory) {
-            valueBadge(m.pressure.label, Thresholds.pressureColor(m.pressure))
+            badge("\(memory.pressure.label) pressure", Thresholds.pressureColor(memory.pressure))
         } content: {
-            HStack(alignment: .center, spacing: 14) {
-                GaugeColumn(fraction: m.usedFraction,
-                            centerText: "\(m.usedPercent)%",
-                            caption: "Used",
-                            secondary: "\(Fmt.bytes(m.used)) / \(Fmt.bytes(m.total))",
-                            color: Thresholds.pressureColor(m.pressure))
-                VStack(alignment: .leading, spacing: 7) {
-                    statLine("Wired", Fmt.bytes(m.wired))
-                    statLine("Compressed", Fmt.bytes(m.compressed))
-                    statLine("App", Fmt.bytes(m.app))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 12) {
+                miniStat("App", Fmt.bytes(memory.app))
+                miniStat("Wired", Fmt.bytes(memory.wired))
+                miniStat("Compressed", Fmt.bytes(memory.compressed))
             }
-        }
-    }
-
-    private var diskSection: some View {
-        MetricSection("Storage", systemImage: "internaldrive", tint: Palette.disk) {
-            EmptyView()
-        } content: {
-            VStack(spacing: 11) {
-                if monitor.disks.isEmpty {
-                    Text("Reading volumes…")
-                        .font(.system(size: 11)).foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                ForEach(monitor.disks) { disk in
-                    BarRow(
-                        title: disk.name,
-                        detail: "\(Fmt.bytes(disk.available)) free",
-                        fraction: disk.usedFraction,
-                        subtitle: disk.isInternal ? nil : "external"
-                    )
-                }
-            }
+            Text("\(Fmt.bytes(memory.used)) of \(Fmt.bytes(memory.total)) · resident memory estimate")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private var networkSection: some View {
-        let n = monitor.network
-        return MetricSection("Network", systemImage: "network", tint: Palette.network) {
-            EmptyView()
+        MetricSection("Network", systemImage: "network", tint: Palette.network) {
+            Text("Wi-Fi / Ethernet").font(.caption).foregroundStyle(.secondary)
         } content: {
-            VStack(spacing: 10) {
-                HStack(spacing: 12) {
-                    throughput(symbol: "arrow.down", color: Palette.network,
-                               value: Fmt.rate(n.downBytesPerSec),
-                               caption: Fmt.bytes(n.totalDown))
-                    Divider().frame(height: 30).opacity(0.4)
-                    throughput(symbol: "arrow.up", color: Palette.thermal,
-                               value: Fmt.rate(n.upBytesPerSec),
-                               caption: Fmt.bytes(n.totalUp))
+            if monitor.network.interfaceCount == 0 {
+                Label("No interface readings available", systemImage: "wifi.slash")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 16) {
+                    throughput("Download", symbol: "arrow.down", value: monitor.network.downBytesPerSec,
+                               total: monitor.network.totalDown, history: monitor.netDownHistory, color: Palette.network)
+                    Divider()
+                    throughput("Upload", symbol: "arrow.up", value: monitor.network.upBytesPerSec,
+                               total: monitor.network.totalUp, history: monitor.netUpHistory, color: Palette.cpu)
                 }
-                .frame(maxWidth: .infinity)
-                HStack(spacing: 12) {
-                    Sparkline(values: monitor.netDownHistory, color: Palette.network)
-                        .frame(height: 22)
-                    Sparkline(values: monitor.netUpHistory, color: Palette.thermal)
-                        .frame(height: 22)
+                Text("Totals since Auspex opened; excludes traffic while the panel is closed.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func throughput(_ title: String, symbol: String, value: Double, total: UInt64,
+                            history: [Double], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbol).font(.caption).foregroundStyle(.secondary)
+            Text(Fmt.rate(value)).font(.system(size: 18, weight: .semibold)).monospacedDigit().lineLimit(1)
+            Sparkline(values: history, color: color).frame(height: 20).accessibilityHidden(true)
+            Text("\(Fmt.bytes(total)) total").font(.caption).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+    }
+
+    private var diskSection: some View {
+        MetricSection("Storage", systemImage: "internaldrive", tint: Palette.disk) {
+            Text("\(monitor.disks.count) volumes").font(.caption).foregroundStyle(.secondary)
+        } content: {
+            if monitor.disks.isEmpty {
+                Label(monitor.lastUpdated == nil ? "Reading volumes…" : "No accessible volumes", systemImage: "externaldrive.badge.questionmark")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text("Use Refresh to try again.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(showAllVolumes ? monitor.disks : Array(monitor.disks.prefix(2))) { disk in
+                    BarRow(title: disk.name, detail: "\(Fmt.bytes(disk.available)) free",
+                           fraction: disk.usedFraction, subtitle: disk.isInternal ? nil : "External")
+                        .help("\(disk.url.path) · \(Fmt.bytes(disk.used)) used of \(Fmt.bytes(disk.total))")
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue("\(disk.usedPercent) percent used")
+                }
+                if monitor.disks.count > 2 {
+                    Button(showAllVolumes ? "Show fewer volumes" : "Show all \(monitor.disks.count) volumes") {
+                        showAllVolumes.toggle()
+                    }.buttonStyle(.link).font(.caption)
                 }
             }
         }
     }
 
     private var batterySection: some View {
-        let b = monitor.battery
-        let color = Thresholds.batteryColor(percent: b.percent, charging: b.isCharging)
-        return MetricSection("Battery", systemImage: batterySymbol(b), tint: Palette.battery) {
-            valueBadge("\(b.percent)%", color)
+        let battery = monitor.battery
+        let color = Thresholds.batteryColor(percent: battery.percent, charging: battery.isCharging)
+        return MetricSection("Battery", systemImage: battery.isCharging ? "battery.100.bolt" : "battery.100", tint: Palette.battery) {
+            badge("\(battery.percent)%", color)
         } content: {
-            VStack(spacing: 9) {
-                CapacityBar(fraction: Double(b.percent) / 100, color: color, height: 8)
-                HStack {
-                    Text(batteryStatusText(b))
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                    Spacer()
-                    if let h = b.healthPercent {
-                        Text("Health \(h)%")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
-                    }
-                    if let c = b.cycleCount {
-                        Text("· \(c) cycles")
-                            .font(.system(size: 10)).foregroundStyle(.tertiary)
-                    }
-                }
+            CapacityBar(fraction: Double(battery.percent) / 100, color: color, height: 6).accessibilityHidden(true)
+            HStack {
+                Text(batteryStatus(battery)).font(.subheadline)
+                Spacer()
+                if let cycles = battery.cycleCount { Text("\(cycles) cycles").font(.caption).foregroundStyle(.secondary) }
+            }
+            if let health = battery.healthPercent {
+                Text("Maximum capacity \(health)%").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
 
     private var thermalSection: some View {
-        let t = monitor.thermal
-        return MetricSection("Temperatures", systemImage: "thermometer.medium",
-                             tint: Palette.thermal) {
-            if let cpu = t.cpuCelsius {
-                valueBadge(Fmt.celsius(cpu), Thresholds.tempColor(cpu))
-            }
+        let thermal = monitor.thermal
+        return MetricSection("Temperature", systemImage: "thermometer.medium", tint: Palette.thermal) {
+            badge(thermal.thermalState.label, Thresholds.thermalColor(thermal.thermalState))
         } content: {
-            if t.hasSensors {
-                let columns = [GridItem(.flexible()), GridItem(.flexible())]
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
-                    ForEach(t.sensors.prefix(8)) { sensor in
-                        HStack(spacing: 5) {
-                            Circle()
-                                .fill(Thresholds.tempColor(sensor.celsius))
-                                .frame(width: 6, height: 6)
-                                .shadow(color: Thresholds.tempColor(sensor.celsius).opacity(0.6),
-                                        radius: 2)
-                            Text(shortSensorName(sensor.name))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer(minLength: 2)
-                            Text(Fmt.celsius(sensor.celsius))
-                                .font(.system(size: 10, weight: .semibold))
-                                .monospacedDigit()
+            if let temperature = thermal.cpuCelsius ?? thermal.sensors.map(\.celsius).max() {
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(Fmt.celsius(temperature))C")
+                            .font(.system(size: 30, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text(thermal.cpuCelsius == nil ? "Hottest sensor" : "CPU / SoC average")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    Spacer()
+                    if thermal.cpuCelsius != nil, let hottest = thermal.sensors.max(by: { $0.celsius < $1.celsius }) {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(Fmt.celsius(hottest.celsius))C")
+                                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                            Text("Hottest sensor").font(.caption).foregroundStyle(.secondary)
                         }
+                        .help(hottest.name)
+                        .accessibilityElement(children: .combine)
                     }
                 }
+            }
+            if thermal.hasSensors {
+                DisclosureGroup("\(thermal.sensors.count) temperature sensors", isExpanded: $showSensors) {
+                    VStack(spacing: 8) {
+                        ForEach(thermal.sensors) { sensor in
+                            HStack {
+                                Text(sensor.name).lineLimit(1).help(sensor.name)
+                                Spacer()
+                                Text("\(Fmt.celsius(sensor.celsius))C").monospacedDigit()
+                            }.font(.caption).accessibilityElement(children: .combine)
+                        }
+                    }.padding(.top, 8)
+                }.font(.caption)
             } else {
-                Text("Sensor readout unavailable — showing system thermal state: \(t.thermalState.label)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text("Temperature sensors are unavailable on this Mac. System thermal status remains available.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    // MARK: Small helpers
-
-    private func valueBadge(_ text: String, _ color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .contentTransition(.numericText())
-            .animation(.snappy, value: text)
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.16), in: Capsule())
-            .animation(.easeInOut(duration: 0.3), value: color)
+    private func miniStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.subheadline.weight(.medium)).monospacedDigit().lineLimit(1)
+        }.frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine)
     }
 
-    private func statLine(_ name: String, _ value: String) -> some View {
-        HStack {
-            Text(name).font(.system(size: 10)).foregroundStyle(.tertiary)
-            Spacer(minLength: 4)
-            Text(value).font(.system(size: 10, weight: .semibold))
-                .monospacedDigit().foregroundStyle(.secondary)
+    private func badge(_ text: String, _ color: Color) -> some View {
+        Text(text).font(.caption.weight(.medium)).foregroundStyle(.primary)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(color.opacity(0.15), in: Capsule())
+    }
+
+    private func batteryStatus(_ battery: BatteryInfo) -> String {
+        if battery.isCharging {
+            return battery.timeRemainingMinutes.map { "\(Fmt.minutes($0)) to full" } ?? "Charging"
         }
-    }
-
-    private func throughput(symbol: String, color: Color,
-                            value: String, caption: String) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 4) {
-                Image(systemName: symbol).foregroundStyle(color)
-                    .font(.system(size: 11, weight: .bold))
-                Text(value).font(.system(size: 14, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: value)
-            }
-            Text("total \(caption)")
-                .font(.system(size: 9)).foregroundStyle(.tertiary)
-                .monospacedDigit()
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func batterySymbol(_ b: BatteryInfo) -> String {
-        if b.isCharging { return "battery.100.bolt" }
-        switch b.percent {
-        case ..<13: return "battery.0"
-        case ..<38: return "battery.25"
-        case ..<63: return "battery.50"
-        case ..<88: return "battery.75"
-        default: return "battery.100"
-        }
-    }
-
-    private func batteryStatusText(_ b: BatteryInfo) -> String {
-        if b.isCharging {
-            if let m = b.timeRemainingMinutes { return "Charging · \(Fmt.minutes(m)) to full" }
-            return "Charging"
-        }
-        if b.isPluggedIn { return "Plugged in" }
-        if let m = b.timeRemainingMinutes { return "\(Fmt.minutes(m)) remaining" }
-        return "On battery"
-    }
-
-    /// Trim verbose sensor names for the compact grid.
-    private func shortSensorName(_ raw: String) -> String {
-        raw.replacingOccurrences(of: " Temp Sensor", with: "")
-           .replacingOccurrences(of: "Temperature", with: "Temp")
+        if battery.isPluggedIn { return battery.percent >= 100 ? "Fully charged" : "Plugged in · not charging" }
+        return battery.timeRemainingMinutes.map { "\(Fmt.minutes($0)) remaining" } ?? "On battery"
     }
 }

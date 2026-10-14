@@ -17,6 +17,7 @@ struct AuspexApp: App {
         MenuBarExtra {
             PanelView()
                 .environment(monitor)
+                .preferredColorScheme(monitor.appearance.colorScheme)
                 .onAppear { monitor.startActive() }
                 .onDisappear { monitor.goIdle() }
         } label: {
@@ -27,6 +28,7 @@ struct AuspexApp: App {
         Settings {
             SettingsView()
                 .environment(monitor)
+                .preferredColorScheme(monitor.appearance.colorScheme)
         }
     }
 }

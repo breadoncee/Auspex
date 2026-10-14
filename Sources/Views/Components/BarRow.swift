@@ -25,7 +25,7 @@ struct BarRow: View {
                     .lineLimit(1)
                 if let subtitle {
                     Text(subtitle.uppercased())
-                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .background(.quaternary, in: Capsule())
@@ -43,6 +43,7 @@ struct BarRow: View {
 
 /// Rounded track + glowing gradient fill, animated.
 struct CapacityBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let fraction: Double
     var color: Color = .accentColor
     var height: CGFloat = 8
@@ -59,11 +60,10 @@ struct CapacityBar: View {
                         )
                     )
                     .frame(width: fillWidth(geo.size.width))
-                    .shadow(color: color.opacity(0.5), radius: 3)
             }
         }
         .frame(height: height)
-        .animation(.easeOut(duration: 0.3), value: fraction)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: fraction)
     }
 
     private func fillWidth(_ total: CGFloat) -> CGFloat {

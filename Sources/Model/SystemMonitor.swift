@@ -1,23 +1,11 @@
-//
-//  SystemMonitor.swift
-//  Auspex
-//
-//  The single @Observable model the whole UI reads from. Owns ONE timer and
-//  orchestrates every collector. Designed to be resource-frugal:
-//   - Fast tick only while the panel is open (active); paused when closed.
-//   - Slow-changing metrics (disk, battery) run every Nth tick.
-//   - Collection happens off the main actor; results are published back.
-//
-
 import Foundation
 import Observation
-import SwiftUI
+import AppKit
+import Combine
 
 @MainActor
 @Observable
 final class SystemMonitor {
-
-    // MARK: Published snapshots (views observe these)
     private(set) var cpu = CPUSnapshot()
     private(set) var memory = MemorySnapshot()
     private(set) var disks: [DiskInfo] = []
@@ -25,131 +13,199 @@ final class SystemMonitor {
     private(set) var battery = BatteryInfo()
     private(set) var thermal = ThermalSnapshot()
     private(set) var isActive = false
-
-    // MARK: Rolling history for sparklines (most recent last)
-    private(set) var cpuHistory: [Double] = []          // load fraction 0...1
-    private(set) var netDownHistory: [Double] = []      // bytes/sec
-    private(set) var netUpHistory: [Double] = []        // bytes/sec
+    private(set) var isSleeping = false
+    private(set) var isCollecting = false
+    private(set) var lastUpdated: Date?
+    private(set) var cpuHistory: [Double] = []
+    private(set) var netDownHistory: [Double] = []
+    private(set) var netUpHistory: [Double] = []
     private let maxHistory = 40
+    private let defaults: UserDefaults
 
-    // MARK: User settings (persisted)
+    var appearance: AppAppearance {
+        didSet { defaults.set(appearance.rawValue, forKey: "appearance") }
+    }
+
     var refreshInterval: Double {
         didSet {
-            UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
-            if isActive { startActive() }   // restart timer with new cadence
+            let clamped = Self.validInterval(refreshInterval)
+            if clamped != refreshInterval { refreshInterval = clamped }
+            defaults.set(refreshInterval, forKey: "refreshInterval")
+            configureTimer()
         }
     }
     var menuBarMetric: MenuBarMetric {
         didSet {
-            UserDefaults.standard.set(menuBarMetric.rawValue, forKey: "menuBarMetric")
-            if !isActive { goIdle() }   // re-evaluate idle polling for the new choice
+            defaults.set(menuBarMetric.rawValue, forKey: "menuBarMetric")
+            configureTimer()
+            if !isActive && !isSleeping && menuBarMetric != .none {
+                Task { await tick() }
+            }
         }
     }
 
-    // MARK: Collectors
     private let diskCollector = DiskCollector()
     private let memoryCollector = MemoryCollector()
     private let cpuCollector = CPUCollector()
     private let networkCollector = NetworkCollector()
     private let batteryCollector = BatteryCollector()
     private let thermalCollector = ThermalCollector()
-
-    // MARK: Timing
+    private let workQueue = DispatchQueue(label: "com.local.auspex.collect", qos: .utility)
     private var timer: Timer?
-    private var tickCount = 0
-    private let diskEveryNTicks = 10      // disk changes slowly
-    private let batteryEveryNTicks = 5
+    private var lastDiskTime: TimeInterval = -.infinity
+    private var lastBatteryTime: TimeInterval = -.infinity
+    private var lastThermalTime: TimeInterval = -.infinity
+    private var resetRates = true
+    private var pendingFullRefresh = false
+    private var generation = 0
     private var memoryPressureSource: DispatchSourceMemoryPressure?
+    private var workspaceSubscriptions: [AnyCancellable] = []
 
-    // Serialize off-main collection so the runs never overlap.
-    private let workQueue = DispatchQueue(label: "com.local.auspex.collect",
-                                          qos: .utility)
-
-    init() {
-        let savedInterval = UserDefaults.standard.double(forKey: "refreshInterval")
-        self.refreshInterval = savedInterval >= 0.5 ? savedInterval : 1.0
-        let savedMetric = UserDefaults.standard.string(forKey: "menuBarMetric")
-            .flatMap(MenuBarMetric.init(rawValue:))
-        self.menuBarMetric = savedMetric ?? .cpu
-
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        appearance = defaults.string(forKey: "appearance")
+            .flatMap(AppAppearance.init(rawValue:)) ?? .system
+        let saved = defaults.object(forKey: "refreshInterval") as? Double ?? 1
+        refreshInterval = Self.validInterval(saved)
+        menuBarMetric = defaults.string(forKey: "menuBarMetric")
+            .flatMap(MenuBarMetric.init(rawValue:)) ?? .cpu
         installMemoryPressureSource()
-        // Seed an immediate sample, then begin slow idle polling so the menu
-        // bar stat stays current before the panel is ever opened.
-        Task { await self.tick(forceAll: true) }
-        goIdle()
+        let notifications = NSWorkspace.shared.notificationCenter
+        workspaceSubscriptions = [
+            notifications.publisher(for: NSWorkspace.willSleepNotification).sink { [weak self] _ in
+                Task { @MainActor in self?.suspend() }
+            },
+            notifications.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in
+                Task { @MainActor in self?.resume() }
+            },
+            notifications.publisher(for: NSWorkspace.didMountNotification).sink { [weak self] _ in
+                Task { @MainActor in self?.refreshNow() }
+            },
+            notifications.publisher(for: NSWorkspace.didUnmountNotification).sink { [weak self] _ in
+                Task { @MainActor in self?.refreshNow() }
+            }
+        ]
+        configureTimer()
+        Task { await tick(forceAll: true) }
     }
 
-    // MARK: Lifecycle driven by the panel
+    static func validInterval(_ value: Double) -> Double {
+        value.isFinite ? min(5, max(0.5, value)) : 1
+    }
 
     func startActive() {
+        guard !isActive else { return }
         isActive = true
-        timer?.invalidate()
-        let t = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in await self.tick() }
-        }
-        t.tolerance = refreshInterval * 0.2
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
-        Task { await tick(forceAll: true) }   // refresh instantly on open
+        resetRates = true
+        cpuHistory.removeAll()
+        netDownHistory.removeAll()
+        netUpHistory.removeAll()
+        configureTimer()
+        Task { await tick(forceAll: true) }
     }
 
     func goIdle() {
+        guard isActive else { return }
         isActive = false
+        configureTimer()
+    }
+
+    func suspend() {
+        isSleeping = true
+        generation &+= 1
         timer?.invalidate()
         timer = nil
+        resetRates = true
+    }
 
-        // Keep the menu bar number alive with an infrequent tick (cheap), but
-        // pause entirely if nothing is shown inline.
-        guard menuBarMetric != .none else { return }
-        let t = Timer(timeInterval: 3.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in await self.tick() }
+    func resume() {
+        guard isSleeping else { return }
+        isSleeping = false
+        resetRates = true
+        cpuHistory.removeAll()
+        netDownHistory.removeAll()
+        netUpHistory.removeAll()
+        configureTimer()
+        Task { await tick(forceAll: true) }
+    }
+
+    func refreshNow() {
+        Task { await tick(forceAll: true) }
+    }
+
+    private func configureTimer() {
+        timer?.invalidate()
+        timer = nil
+        guard !isSleeping, isActive || menuBarMetric != .none else { return }
+        let interval = isActive ? refreshInterval : 3
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.tick() }
         }
-        t.tolerance = 1.0
+        t.tolerance = interval * 0.2
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
 
-    // MARK: One sampling pass
-
     private func tick(forceAll: Bool = false) async {
-        tickCount &+= 1
-        let doDisk = forceAll || tickCount % diskEveryNTicks == 1
-        let doBattery = forceAll || tickCount % batteryEveryNTicks == 1
-
-        // Capture collectors locally; run the blocking syscalls off-main.
-        let cpuC = cpuCollector
-        let memC = memoryCollector
-        let netC = networkCollector
-        let thermC = thermalCollector
-        let diskC = diskCollector
-        let batC = batteryCollector
-
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Sample, Never>) in
-            workQueue.async {
-                var s = Sample()
-                s.cpu = cpuC.collect()
-                s.memory = memC.collect()
-                s.network = netC.collect()
-                s.thermal = thermC.collect()
-                if doDisk { s.disks = diskC.collect() }
-                if doBattery { s.battery = batC.collect() }
-                cont.resume(returning: s)
+        guard !isSleeping else { return }
+        // A serial queue alone does not bound the backlog. At most one
+        // sample may be in flight; coalesce explicit refresh requests.
+        guard !isCollecting else {
+            pendingFullRefresh = pendingFullRefresh || forceAll
+            return
+        }
+        isCollecting = true
+        defer {
+            isCollecting = false
+            if pendingFullRefresh && !isSleeping {
+                pendingFullRefresh = false
+                Task { await tick(forceAll: true) }
             }
         }
+        let sampleGeneration = generation
+        let now = ProcessInfo.processInfo.systemUptime
+        let full = isActive || forceAll
+        let doDisk = full && (forceAll || now - lastDiskTime >= 10)
+        let doBattery = full && (forceAll || now - lastBatteryTime >= 5)
+        let doThermal = full && (forceAll || now - lastThermalTime >= 3)
+        let doCPU = full || menuBarMetric == .cpu
+        let doMemory = full || menuBarMetric == .memory
+        let shouldReset = resetRates
+        resetRates = false
+        let cpuC = cpuCollector, netC = networkCollector, thermC = thermalCollector
+        let memC = memoryCollector, diskC = diskCollector, batC = batteryCollector
 
-        // Publish on the main actor.
-        cpu = result.cpu
-        memory = result.memory
-        network = result.network
-        thermal = result.thermal
-        if let d = result.disks { disks = d }
-        if let b = result.battery { battery = b }
-
-        append(&cpuHistory, result.cpu.total)
-        append(&netDownHistory, result.network.downBytesPerSec)
-        append(&netUpHistory, result.network.upBytesPerSec)
+        let result = await withCheckedContinuation { (continuation: CheckedContinuation<Sample, Never>) in
+            workQueue.async {
+                if shouldReset {
+                    cpuC.resetBaseline()
+                    netC.resetBaseline()
+                }
+                var sample = Sample()
+                if doCPU { sample.cpu = cpuC.collect() }
+                if doMemory { sample.memory = memC.collect() }
+                if full { sample.network = netC.collect() }
+                if doThermal { sample.thermal = thermC.collect() }
+                if doDisk { sample.disks = diskC.collect() }
+                if doBattery { sample.battery = batC.collect() }
+                continuation.resume(returning: sample)
+            }
+        }
+        guard !isSleeping, generation == sampleGeneration else { return }
+        if let value = result.cpu { cpu = value }
+        if let value = result.memory { memory = value }
+        if let value = result.network { network = value }
+        if let value = result.thermal { thermal = value; lastThermalTime = now }
+        if let value = result.disks { disks = value; lastDiskTime = now }
+        if let value = result.battery { battery = value; lastBatteryTime = now }
+        lastUpdated = Date()
+        if isActive && !shouldReset {
+            if let value = result.cpu { append(&cpuHistory, value.total) }
+            if let value = result.network {
+                append(&netDownHistory, value.downBytesPerSec)
+                append(&netUpHistory, value.upBytesPerSec)
+            }
+        }
     }
 
     private func append(_ buffer: inout [Double], _ value: Double) {
@@ -157,49 +213,35 @@ final class SystemMonitor {
         if buffer.count > maxHistory { buffer.removeFirst(buffer.count - maxHistory) }
     }
 
-    // MARK: Instant memory-pressure reaction
-
     private func installMemoryPressureSource() {
-        let src = DispatchSource.makeMemoryPressureSource(
-            eventMask: [.normal, .warning, .critical],
-            queue: .main
-        )
-        src.setEventHandler { [weak self] in
-            guard let self else { return }
-            let event = src.data
-            let level: MemoryPressure
-            if event.contains(.critical) { level = .critical }
-            else if event.contains(.warning) { level = .warning }
-            else { level = .normal }
-            // Patch just the pressure field for an instant UI response.
-            var m = self.memory
-            m.pressure = level
-            self.memory = m
+        let source = DispatchSource.makeMemoryPressureSource(eventMask: [.normal, .warning, .critical], queue: .main)
+        source.setEventHandler { [weak self] in
+            guard let self, let source = self.memoryPressureSource else { return }
+            let event = source.data
+            self.memory.pressure = event.contains(.critical) ? .critical : event.contains(.warning) ? .warning : .normal
         }
-        src.resume()
-        memoryPressureSource = src
+        source.resume()
+        memoryPressureSource = source
     }
 
-    private struct Sample {
-        var cpu = CPUSnapshot()
-        var memory = MemorySnapshot()
-        var network = NetworkSnapshot()
-        var thermal = ThermalSnapshot()
-        var disks: [DiskInfo]? = nil
-        var battery: BatteryInfo? = nil
+    private struct Sample: Sendable {
+        var cpu: CPUSnapshot?
+        var memory: MemorySnapshot?
+        var network: NetworkSnapshot?
+        var thermal: ThermalSnapshot?
+        var disks: [DiskInfo]?
+        var battery: BatteryInfo?
     }
 }
 
-// MARK: - Menu bar inline metric choice
-
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, memory, none
+    case none, cpu, memory
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .cpu: return "CPU %"
-        case .memory: return "RAM %"
         case .none: return "Icon only"
+        case .cpu: return "CPU usage"
+        case .memory: return "Memory usage"
         }
     }
 }

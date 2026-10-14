@@ -11,6 +11,7 @@ import Foundation
 // MARK: - CPU
 
 struct CPUSnapshot: Equatable {
+    var isReady = false
     /// Overall busy fraction 0...1.
     var total: Double = 0
     /// Per-core busy fraction 0...1, ordered by logical core index.
@@ -24,11 +25,12 @@ struct CPUSnapshot: Equatable {
 // MARK: - Memory
 
 struct MemorySnapshot: Equatable {
+    var isReady = false
     var total: UInt64 = 0          // bytes
-    var used: UInt64 = 0          // active + wired + compressed
+    var used: UInt64 = 0          // app + wired + compressed
     var wired: UInt64 = 0
     var compressed: UInt64 = 0
-    var app: UInt64 = 0           // active + inactive approximation
+    var app: UInt64 = 0           // anonymous resident pages minus purgeable
     var pressure: MemoryPressure = .normal
 
     var usedFraction: Double { total > 0 ? Double(used) / Double(total) : 0 }
@@ -76,10 +78,11 @@ struct DiskInfo: Identifiable, Equatable {
 // MARK: - Network
 
 struct NetworkSnapshot: Equatable {
+    var interfaceCount: Int = 0
     /// Bytes per second.
     var downBytesPerSec: Double = 0
     var upBytesPerSec: Double = 0
-    /// Cumulative totals since boot (bytes).
+    /// Traffic observed since this collector started (bytes).
     var totalDown: UInt64 = 0
     var totalUp: UInt64 = 0
 }
@@ -100,7 +103,7 @@ struct BatteryInfo: Equatable {
 // MARK: - Thermal
 
 struct TempSensor: Identifiable, Equatable {
-    var id: String { name }
+    var id: String
     var name: String
     var celsius: Double
 }
@@ -109,7 +112,7 @@ struct ThermalSnapshot: Equatable {
     var sensors: [TempSensor] = []
     /// Public, always-available coarse signal.
     var thermalState: ThermalLevel = .nominal
-    /// Representative CPU temp derived from sensor averaging, if available.
+    /// Average of CPU/SoC-labelled sensors only, if available.
     var cpuCelsius: Double? = nil
 
     var hasSensors: Bool { !sensors.isEmpty }

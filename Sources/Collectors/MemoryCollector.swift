@@ -33,15 +33,18 @@ struct MemoryCollector {
         var pageSize: vm_size_t = 0
         host_page_size(mach_host_self(), &pageSize)
         let page = UInt64(pageSize)
-        let active = UInt64(stats.active_count) * page
-        let inactive = UInt64(stats.inactive_count) * page
         let wired = UInt64(stats.wire_count) * page
         let compressed = UInt64(stats.compressor_page_count) * page
 
         snap.wired = wired
         snap.compressed = compressed
-        snap.app = active + inactive
-        snap.used = active + wired + compressed
+        // Internal pages are anonymous memory. File-backed active/inactive
+        // pages are cache and can be reclaimed; they are not app memory.
+        let anonymous = UInt64(stats.internal_page_count) * page
+        let purgeable = UInt64(stats.purgeable_count) * page
+        snap.app = anonymous > purgeable ? anonymous - purgeable : 0
+        snap.used = snap.app + wired + compressed
+        snap.isReady = true
         return snap
     }
 

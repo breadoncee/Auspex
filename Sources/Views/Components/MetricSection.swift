@@ -2,8 +2,8 @@
 //  MetricSection.swift
 //  Auspex
 //
-//  A titled Liquid Glass card with an accent-tinted icon chip and an optional
-//  trailing accessory. Gives every metric block a consistent, premium frame.
+//  A readable metric card with an accent icon chip and an optional
+//  trailing accessory. Gives every metric block a consistent frame.
 //
 
 import SwiftUI
@@ -41,7 +41,7 @@ struct MetricSection<Content: View, Accessory: View>: View {
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                     )
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                 Spacer(minLength: 4)
                 accessory()

@@ -15,6 +15,8 @@ final class CPUCollector: @unchecked Sendable {
     private var previous: [host_cpu_load_info]?
     private let coreKinds: [String] = CPUCollector.perfLevelKinds()
 
+    func resetBaseline() { previous = nil }
+
     func collect() -> CPUSnapshot {
         var snap = CPUSnapshot()
         snap.coreKinds = coreKinds
@@ -57,6 +59,7 @@ final class CPUCollector: @unchecked Sendable {
 
         var perCore: [Double] = Array(repeating: 0, count: current.count)
         if let prev = previous, prev.count == current.count {
+            snap.isReady = true
             for i in 0..<current.count {
                 let dUser = Double(current[i].cpu_ticks.0 &- prev[i].cpu_ticks.0)
                 let dSys = Double(current[i].cpu_ticks.1 &- prev[i].cpu_ticks.1)

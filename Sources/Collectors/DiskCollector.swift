@@ -14,6 +14,7 @@ struct DiskCollector {
         .volumeNameKey,
         .volumeTotalCapacityKey,
         .volumeAvailableCapacityForImportantUsageKey,
+        .volumeAvailableCapacityKey,
         .volumeIsRemovableKey,
         .volumeIsInternalKey,
         .volumeIsBrowsableKey,
@@ -32,12 +33,14 @@ struct DiskCollector {
             // Skip non-browsable system volumes (e.g. the read-only system snapshot).
             if values.volumeIsBrowsable == false { continue }
 
-            let total = UInt64(values.volumeTotalCapacity ?? 0)
+            let total = UInt64(max(0, values.volumeTotalCapacity ?? 0))
             guard total > 0 else { continue }
 
             // `volumeAvailableCapacityForImportantUsage` is Int64 and may be 0
             // on some virtual volumes; treat 0 as "full" rather than dropping it.
-            let available = UInt64(max(0, values.volumeAvailableCapacityForImportantUsage ?? 0))
+            let available = min(total, UInt64(max(0,
+                values.volumeAvailableCapacityForImportantUsage
+                    ?? values.volumeAvailableCapacity.map(Int64.init) ?? 0)))
 
             disks.append(
                 DiskInfo(

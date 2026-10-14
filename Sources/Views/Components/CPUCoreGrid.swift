@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct CPUCoreGrid: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let perCore: [Double]
     let coreKinds: [String]
 
@@ -23,13 +24,15 @@ struct CPUCoreGrid: View {
                         .foregroundStyle(.tertiary)
                         .monospacedDigit()
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Core \(idx + 1)")
+                .accessibilityValue("\(Int((load * 100).rounded())) percent used")
             }
         }
     }
 
     private func label(_ idx: Int) -> String {
-        if idx < coreKinds.count { return "\(coreKinds[idx])\(idx)" }
-        return "\(idx)"
+        return "\(idx + 1)"
     }
 
     private func coreBar(_ load: Double) -> some View {
@@ -46,10 +49,9 @@ struct CPUCoreGrid: View {
                         )
                     )
                     .frame(height: max(3, min(1, load) * geo.size.height))
-                    .shadow(color: c.opacity(0.5), radius: 2)
             }
         }
         .frame(height: 30)
-        .animation(.easeOut(duration: 0.25), value: load)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: load)
     }
 }

@@ -37,7 +37,6 @@ struct Sparkline: View {
                             color,
                             style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
                         )
-                        .shadow(color: color.opacity(0.5), radius: 2)
                 } else {
                     // Not enough samples yet — a faint baseline.
                     Rectangle()
