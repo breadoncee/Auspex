@@ -36,7 +36,7 @@ third-party dependencies), and collects readings on a background queue with boun
 ## Features
 
 - **CPU** — prominent overall load, expandable per-core bars, and a load sparkline.
-- **Memory** — used / wired / compressed, with live memory-pressure color (green → yellow → red).
+- **Memory** — app / wired / compressed RAM, live memory pressure, and disk-backed **Swap used** in both the overview tile and detailed breakdown. Swap is separate from the RAM percentage.
 - **Storage** — mounted volumes including external drives, with Finder-style available space where supported and a capacity fallback.
 - **Network** — Wi-Fi/Ethernet throughput from 64-bit counters, with trend sparklines and observed traffic totals. VPN and peer-to-peer interfaces are excluded to avoid counting packets twice.
 - **Battery** — charge, charging state, health %, and cycle count (laptops only).
@@ -176,13 +176,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the version history.
 ```bash
 make verify
 # Run outside restrictive tool sandboxes to require real mounted volumes:
-Tools/verify.sh --require-volumes --require-temperatures
+Tools/verify.sh --require-volumes --require-temperatures --require-swap
 make local
 open build/Local/Auspex.app
 ```
 
 The regression harness checks memory accounting, 64-bit network counters, interface
-changes, counter resets, unique sensor identities, CPU/battery/storage bounds, and
+changes, counter resets, live swap usage and unavailable-query handling, unique sensor identities, CPU/battery/storage bounds, and
 monitor refresh bursts and sleep/wake transitions. It also renders the menu bar logo
 in light and dark appearances with loose PNGs and missing resources. It uses an isolated preferences
 suite. Storage and temperature APIs may return no data inside a development sandbox.

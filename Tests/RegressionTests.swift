@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 @main
 struct RegressionTests {
@@ -32,6 +33,22 @@ struct RegressionTests {
         expect(memory.used == memory.app + memory.wired + memory.compressed, "Memory components must add up to Memory Used")
         expect(memory.used <= memory.total, "Resident memory must not exceed physical memory")
         print("PASS: live memory accounting")
+
+        var swap = xsw_usage()
+        var swapSize = MemoryLayout<xsw_usage>.size
+        let swapResult = sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0)
+        if swapResult == 0 {
+            expect(memory.swapUsed != nil, "Successful swap queries must publish a reading, including zero")
+            if let used = memory.swapUsed {
+                expect(used <= swap.xsu_total, "Swap used must fit within allocated swap")
+            }
+        } else {
+            expect(memory.swapUsed == nil, "Unavailable swap must not be reported as zero usage")
+        }
+        if ProcessInfo.processInfo.arguments.contains("--require-swap") {
+            expect(memory.swapUsed != nil, "Live swap usage must be available on this Mac")
+        }
+        print("PASS: live swap usage (\(memory.swapUsed.map { "\($0) bytes" } ?? "unavailable")); resident accounting excludes swap")
 
         let cpu = CPUCollector()
         let baseline = cpu.collect()

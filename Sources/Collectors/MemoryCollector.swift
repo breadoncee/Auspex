@@ -3,8 +3,8 @@
 //  Auspex
 //
 //  Reads live VM statistics via host_statistics64 and the current memory
-//  pressure level via sysctl. "Used" mirrors Activity Monitor's Memory Used
-//  (App + Wired + Compressed).
+//  pressure level and disk-backed swap via sysctl. Resident memory is an
+//  estimate (App + Wired + Compressed); swap is reported separately.
 //
 
 import Darwin
@@ -17,6 +17,7 @@ struct MemoryCollector {
         var snap = MemorySnapshot()
         snap.total = total
         snap.pressure = MemoryPressure(rawLevel: pressureLevel())
+        snap.swapUsed = swapUsedBytes()
 
         var stats = vm_statistics64_data_t()
         var count = mach_msg_type_number_t(
@@ -46,6 +47,14 @@ struct MemoryCollector {
         snap.used = snap.app + wired + compressed
         snap.isReady = true
         return snap
+    }
+
+    private func swapUsedBytes() -> UInt64? {
+        var usage = xsw_usage()
+        var size = MemoryLayout<xsw_usage>.size
+        guard sysctlbyname("vm.swapusage", &usage, &size, nil, 0) == 0,
+              size == MemoryLayout<xsw_usage>.size else { return nil }
+        return usage.xsu_used
     }
 
     /// `kern.memorystatus_vm_pressure_level`: 1 normal, 2 warn, 4 critical.

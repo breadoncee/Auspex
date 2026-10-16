@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-17
+
+### Added
+- Live disk-backed swap usage in the Memory overview tile and detailed Memory card, sampled with RAM readings using `vm.swapusage`.
+- Clear zero-usage and unavailable states. Swap stays separate from the RAM percentage and resident memory total.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed
@@ -53,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.2.0
 [1.1.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.1
 [1.1.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.0
 [1.0.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.0

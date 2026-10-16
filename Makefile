@@ -14,7 +14,7 @@ PROJECT   = Auspex.xcodeproj
 CONFIG   ?= Debug
 BUILD_DIR = build
 DIST_DIR  = dist
-VERSION  ?= 1.1.1
+VERSION  ?= 1.2.0
 PRODUCT   = $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app
 RELEASE_PRODUCT = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 

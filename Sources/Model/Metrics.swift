@@ -31,6 +31,9 @@ struct MemorySnapshot: Equatable {
     var wired: UInt64 = 0
     var compressed: UInt64 = 0
     var app: UInt64 = 0           // anonymous resident pages minus purgeable
+    /// Disk-backed swap currently in use; nil when the kernel query fails.
+    /// This is separate from physical memory and is not included in `used`.
+    var swapUsed: UInt64? = nil
     var pressure: MemoryPressure = .normal
 
     var usedFraction: Double { total > 0 ? Double(used) / Double(total) : 0 }

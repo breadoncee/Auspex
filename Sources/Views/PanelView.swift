@@ -93,27 +93,39 @@ struct PanelView: View {
     private var overview: some View {
         HStack(spacing: 12) {
             summary("CPU", symbol: "cpu", value: "\(monitor.cpu.totalPercent)%",
-                    detail: "Overall load", fraction: monitor.cpu.total, tint: Palette.cpu, ready: monitor.cpu.isReady)
+                    detail: "Overall load", fraction: monitor.cpu.total, tint: Palette.cpu, ready: monitor.cpu.isReady,
+                    footnote: "\(ProcessInfo.processInfo.processorCount) logical cores")
             summary("Memory", symbol: "memorychip", value: "\(monitor.memory.usedPercent)%",
                     detail: "\(Fmt.bytes(monitor.memory.used)) · \(monitor.memory.pressure.label)", fraction: monitor.memory.usedFraction,
-                    tint: Palette.memory, ready: monitor.memory.isReady)
+                    tint: Palette.memory, ready: monitor.memory.isReady,
+                    footnote: "Swap used: \(swapUsedText)")
+                .help("Swap is disk space macOS uses to hold memory data. It is separate from the RAM percentage.")
         }
     }
 
     private func summary(_ title: String, symbol: String, value: String,
-                         detail: String, fraction: Double, tint: Color, ready: Bool) -> some View {
+                         detail: String, fraction: Double, tint: Color, ready: Bool,
+                         footnote: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: symbol).font(.subheadline.weight(.medium)).foregroundStyle(tint)
             Text(ready ? value : "—")
                 .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
             Text(ready ? detail : "Reading…")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(footnote).font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
             CapacityBar(fraction: fraction, color: tint, height: 5)
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14).glassCard()
         .accessibilityElement(children: .combine)
+    }
+
+    private var swapUsedText: String {
+        guard let used = monitor.memory.swapUsed else {
+            return monitor.lastUpdated == nil ? "Reading…" : "Unavailable"
+        }
+        return used == 0 ? "0 B" : Fmt.bytes(used)
     }
 
     private var cpuSection: some View {
@@ -140,6 +152,14 @@ struct PanelView: View {
                 miniStat("Wired", Fmt.bytes(memory.wired))
                 miniStat("Compressed", Fmt.bytes(memory.compressed))
             }
+            HStack {
+                Text("Swap used").foregroundStyle(.secondary)
+                Spacer()
+                Text(swapUsedText).monospacedDigit()
+            }
+            .font(.subheadline)
+            .accessibilityElement(children: .combine)
+            .help("Disk space currently used for swapped-out memory; not included in the RAM total above.")
             Text("\(Fmt.bytes(memory.used)) of \(Fmt.bytes(memory.total)) · resident memory estimate")
                 .font(.caption).foregroundStyle(.secondary)
         }
