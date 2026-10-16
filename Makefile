@@ -14,11 +14,11 @@ PROJECT   = Auspex.xcodeproj
 CONFIG   ?= Debug
 BUILD_DIR = build
 DIST_DIR  = dist
-VERSION  ?= 1.1.0
+VERSION  ?= 1.1.1
 PRODUCT   = $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app
 RELEASE_PRODUCT = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 
-# Ad-hoc sign ("Sign to Run Locally") — no Apple Developer account required.
+# Skip Xcode's signing workflow; sign the completed bundle explicitly below.
 SIGN_FLAGS = CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
 .PHONY: all build run release dist install clean icon project check-tools local verify
@@ -42,6 +42,7 @@ project: check-tools
 build: project
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) \
 	  -derivedDataPath $(BUILD_DIR) $(SIGN_FLAGS) build
+	codesign --force --sign - "$(PRODUCT)"
 	@echo "\nBuilt: $(PRODUCT)"
 
 run: build

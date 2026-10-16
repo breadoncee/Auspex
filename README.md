@@ -183,7 +183,8 @@ open build/Local/Auspex.app
 
 The regression harness checks memory accounting, 64-bit network counters, interface
 changes, counter resets, unique sensor identities, CPU/battery/storage bounds, and
-monitor refresh bursts and sleep/wake transitions. It uses an isolated preferences
+monitor refresh bursts and sleep/wake transitions. It also renders the menu bar logo
+in light and dark appearances with loose PNGs and missing resources. It uses an isolated preferences
 suite. Storage and temperature APIs may return no data inside a development sandbox.
 
 Memory is a resident estimate (anonymous non-purgeable pages + wired + compressed),

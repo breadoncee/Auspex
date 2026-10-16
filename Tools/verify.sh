@@ -8,3 +8,8 @@ swiftc -swift-version 6 -sdk "$(xcrun --show-sdk-path)" -target arm64-apple-maco
     Sources/Model/*.swift Sources/Collectors/*.swift Tests/RegressionTests.swift \
     -framework IOKit -o build/verification/regressions
 build/verification/regressions "$@"
+swiftc -swift-version 6 -parse-as-library -sdk "$(xcrun --show-sdk-path)" -target arm64-apple-macosx26.0 \
+    -module-cache-path build/ModuleCache \
+    Sources/Views/MenuBarIcon.swift Tests/MenuBarIconTests.swift \
+    -o build/verification/menu-bar-icon-tests
+build/verification/menu-bar-icon-tests

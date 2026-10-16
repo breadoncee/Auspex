@@ -14,7 +14,7 @@ struct MenuBarLabelView: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Image("MenuBarGlyph")
+            Image(nsImage: MenuBarIcon.image)
                 .renderingMode(.template)
             switch monitor.menuBarMetric {
             case .cpu:

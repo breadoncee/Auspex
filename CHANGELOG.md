@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-16
+
+### Fixed
+- Restore the menu bar pulse logo in builds that package PNG resources outside an asset catalog. Load a native template image explicitly and draw a fallback pulse if the resource is unavailable.
+- Sign complete Xcode app bundles before packaging, including their resources.
+- Verify menu bar icon rendering in light and dark appearances, including missing resources and Retina sizing.
+
 ## [1.1.0] - 2026-10-16
 
 ### Changed
@@ -46,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.1
 [1.1.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.0
 [1.0.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.0
