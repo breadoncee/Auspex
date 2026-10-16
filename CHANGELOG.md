@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-16
+
 ### Changed
 - Added a remembered appearance setting: Follow macOS (default), Light, or Dark, applied to the panel and Settings.
 - Prominent temperature card directly below the overview, showing CPU/SoC average, hottest sensor, and expandable individual readings in °C.
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep macOS 26 compatibility and verify runtime collection on macOS 27.0.1.
 
 ### Fixed
+- Reserve panel height for metric readings so the content does not collapse to just the header and footer.
 - Memory Used now equals its displayed app, wired and compressed components; reclaimable file cache is excluded from the resident app estimate.
 - Network rates use 64-bit per-interface counters and monotonic time, preventing overflow and interface-change spikes. Totals describe observed traffic.
 - Temperature rows use unique registry IDs. Private temperature symbols resolve at runtime, allowing a thermal-state fallback if an OS update removes them.
@@ -43,5 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.0...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.0
 [1.0.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.0
