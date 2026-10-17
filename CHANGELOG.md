@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-17
+
+### Fixed
+- The Live badge now describes reading freshness throughout routine background collection instead of flashing Updating on every sample.
+- The Refresh button no longer dims on every polling cycle. Repeated requests still coalesce without creating a collection backlog.
+- Added regressions that keep real stale/unavailable states visible while collecting and compare steady/refreshing panel renders in both themes.
+
 ## [1.3.0] - 2026-10-17
 
 ### Added
@@ -78,7 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.1
 [1.3.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.0
 [1.2.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.2.0
 [1.1.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.1

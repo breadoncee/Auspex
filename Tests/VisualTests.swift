@@ -41,6 +41,7 @@ struct VisualTests {
                                       thermalState: .nominal, cpuCelsius: 65)
         for (name, pressure, swap, stale) in [
             ("normal", MemoryPressure.normal, UInt64(0), false),
+            ("refreshing", MemoryPressure.normal, UInt64(0), false),
             ("warning", MemoryPressure.warning, UInt64(5_600_000_000), false),
             ("unavailable", MemoryPressure.unknown, nil, false),
             ("stale", MemoryPressure.warning, UInt64(5_600_000_000), true)
@@ -50,7 +51,8 @@ struct VisualTests {
                                         swapUsed: swap, pressure: pressure)
             let monitor = SystemMonitor.fixture(defaults: defaults, memory: memory, disks: disks,
                                                 thermal: thermal, cpu: cpu, network: network,
-                                                battery: BatteryInfo(isAvailable: true), stale: stale)
+                                                battery: BatteryInfo(isAvailable: true), stale: stale,
+                                                collecting: name == "refreshing")
             for scheme in [ColorScheme.light, .dark] {
                 let appearance = scheme == .light ? "light" : "dark"
                 try render(PanelView().environment(monitor).environment(preferences)
@@ -65,6 +67,13 @@ struct VisualTests {
                     .preferredColorScheme(.dark),
                     size: CGSize(width: 400, height: 740), path: "build/verification/history-dark.png")
             }
+        }
+        for appearance in ["light", "dark"] {
+            let steady = try Data(contentsOf: URL(fileURLWithPath: "build/verification/normal-\(appearance).png"))
+            let refreshing = try Data(contentsOf: URL(fileURLWithPath: "build/verification/refreshing-\(appearance).png"))
+            precondition(steady == refreshing,
+                         "Routine collection must not alter the visible panel, badge, refresh button or layout (\(appearance))")
+            print("PASS: identical steady/refreshing panel in \(appearance) appearance")
         }
         for card in PanelCard.allCases { preferences.setVisible(card, visible: card == .storage) }
         var fullDisks = disks

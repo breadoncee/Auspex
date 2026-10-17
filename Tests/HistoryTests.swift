@@ -58,23 +58,31 @@ enum HistoryTests {
         let suite = "com.local.auspex.history-fixture.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
-        func fixture(pressure: MemoryPressure, swap: UInt64?, stale: Bool = false) -> SystemMonitor {
+        func fixture(pressure: MemoryPressure, swap: UInt64?, stale: Bool = false, collecting: Bool = false) -> SystemMonitor {
             SystemMonitor.fixture(defaults: defaults,
                 memory: MemorySnapshot(isReady: true, total: 16_000, used: 12_000, swapUsed: swap, pressure: pressure),
                 disks: [], thermal: ThermalSnapshot(cpuCelsius: 50),
                 cpu: CPUSnapshot(isReady: true, total: 0.4, perCore: [0.4]),
                 network: NetworkSnapshot(isReady: true, isAvailable: true, interfaceCount: 1),
-                battery: BatteryInfo(isAvailable: true), stale: stale)
+                battery: BatteryInfo(isAvailable: true), stale: stale, collecting: collecting)
         }
         let current = fixture(pressure: .normal, swap: 0)
         expect(current.panelStatus == "Live", "A complete healthy snapshot should be live, including zero swap")
+        let refreshing = fixture(pressure: .normal, swap: 0, collecting: true)
+        print("Status during routine refresh: \(current.panelStatus) → \(refreshing.panelStatus)")
+        expect(refreshing.panelStatus == current.panelStatus,
+               "Routine collection must not flicker a current Live status or change its layout")
         expect(fixture(pressure: .unknown, swap: 0).panelStatus != "Live", "Missing pressure must not be hidden by healthy RAM")
+        expect(fixture(pressure: .unknown, swap: 0, collecting: true).panelStatus == "Some readings unavailable",
+               "Collection in progress must not hide a genuine unavailable reading")
         expect(fixture(pressure: .normal, swap: nil).panelStatus != "Live", "Missing swap must not appear completely live")
         let stale = fixture(pressure: .warning, swap: 100, stale: true)
         expect(stale.memory.pressure == .warning && !stale.memoryPressureStatus().isCurrent,
                "Retained pressure must have its own stale state")
         expect(stale.panelStatus == "Stale" && stale.readingStatus(for: .storage).hasValue,
                "Stale fixtures preserve dated values without pretending collection succeeded")
+        expect(fixture(pressure: .warning, swap: 100, stale: true, collecting: true).panelStatus == "Stale",
+               "Collection in progress must not hide stale readings")
         current.refreshNow()
         expect(!current.isCollecting, "Snapshot fixtures never launch collectors")
         #endif

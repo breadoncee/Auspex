@@ -117,7 +117,8 @@ final class SystemMonitor {
 
     var panelStatus: String {
         if isSleeping { return "Paused" }
-        if isCollecting { return "Updating" }
+        // This describes the readings, not the brief background collection work.
+        // Routine polling must not toggle the badge or reflow the header.
         let readings = MetricKind.allCases.map { readingStatus(for: $0) } + [memoryPressureStatus()]
         if readings.allSatisfy(\.isCurrent), memory.swapUsed != nil { return "Live" }
         if readings.contains(where: { $0.hasValue && !$0.isCurrent }) { return "Stale" }
@@ -194,11 +195,12 @@ final class SystemMonitor {
     static func fixture(defaults: UserDefaults, memory: MemorySnapshot, disks: [DiskInfo],
                         thermal: ThermalSnapshot, cpu: CPUSnapshot = CPUSnapshot(),
                         network: NetworkSnapshot = NetworkSnapshot(), battery: BatteryInfo = BatteryInfo(),
-                        stale: Bool = false) -> SystemMonitor {
+                        stale: Bool = false, collecting: Bool = false) -> SystemMonitor {
         let monitor = SystemMonitor(defaults: defaults, startMonitoring: false)
         monitor.memory = memory; monitor.disks = disks; monitor.thermal = thermal
         monitor.cpu = cpu; monitor.network = network; monitor.battery = battery
         monitor.isActive = true
+        monitor.isCollecting = collecting
         let now = Date()
         let date = stale ? now.addingTimeInterval(-30) : now
         monitor.lastUpdated = date

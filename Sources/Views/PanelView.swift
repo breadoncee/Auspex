@@ -92,7 +92,7 @@ struct PanelView: View {
                 .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
                 .keyboardShortcut(",", modifiers: .command)
             Button { monitor.refreshNow() } label: { Image(systemName: "arrow.clockwise") }
-                .disabled(monitor.isCollecting).accessibilityLabel("Refresh all readings").help("Refresh all readings now")
+                .accessibilityLabel("Refresh all readings").help("Refresh all readings now")
             Spacer()
             Menu {
                 Button("Open Activity Monitor…") { openActivityMonitor() }
