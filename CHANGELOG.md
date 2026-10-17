@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-17
+
+### Fixed
+- Light and Dark selections now update both the menu panel's native window and its SwiftUI content immediately. Follow macOS clears the override on both panel and Settings windows.
+- Added an appearance-switching regression for existing panel and Settings windows under both light and dark inherited appearances.
+
+### Changed
+- Renamed History window to Chart time range, with Last minute / Last 5 min choices and plain explanations of where charts appear and when recording pauses.
+
 ## [1.3.1] - 2026-10-17
 
 ### Fixed
@@ -85,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.2
 [1.3.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.1
 [1.3.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.0
 [1.2.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.2.0

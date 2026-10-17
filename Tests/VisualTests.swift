@@ -85,6 +85,7 @@ struct VisualTests {
                     .environment(\.colorScheme, .light).preferredColorScheme(.light),
                    size: CGSize(width: 400, height: 740), path: "build/verification/storage-classification.png")
         storage.menuBarMetric = .temperature
+        AppearanceTests.run(monitor: storage, preferences: preferences)
         try render(MenuBarLabelView(monitor: storage).font(.system(size: 13))
                     .frame(width: 90, height: 24).environment(\.colorScheme, .dark).preferredColorScheme(.dark),
                    size: CGSize(width: 90, height: 24), path: "build/verification/temperature-menu.png")

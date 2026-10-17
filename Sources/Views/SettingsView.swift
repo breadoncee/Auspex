@@ -56,7 +56,7 @@ struct SettingsView: View {
             }
 
             Section {
-                Text("Show the readings you use most and move them into your preferred order. Expand a card in the panel for details and history.")
+                Text("Show the readings you use most and move them into your preferred order. Open Details & charts in a card to see recent activity.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ForEach(preferences.cards) { card in
                     HStack(spacing: 12) {
@@ -119,6 +119,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .appWindowAppearance(monitor.appearance)
         .frame(width: 480, height: min(700, max(360, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
         .navigationTitle("Auspex Settings")
         .onAppear { syncLoginStatus() }

@@ -49,6 +49,7 @@ struct PanelView: View {
             footer
         }
         .frame(width: 400, height: panelHeight)
+        .appWindowAppearance(monitor.appearance)
         .background {
             if reduceTransparency { Color(nsColor: .windowBackgroundColor) }
             else { Rectangle().fill(.regularMaterial) }
@@ -73,11 +74,14 @@ struct PanelView: View {
                     Text(monitor.samplingDescription).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Picker("History window", selection: $window) {
-                Text("60 seconds").tag(HistoryWindow.minute)
-                Text("5 minutes").tag(HistoryWindow.fiveMinutes)
+            Picker("Chart time range", selection: $window) {
+                Text("Last minute").tag(HistoryWindow.minute)
+                Text("Last 5 min").tag(HistoryWindow.fiveMinutes)
             }.pickerStyle(.segmented).controlSize(.small)
-                .help("Time span for expanded trend charts. Gaps indicate periods without readings.")
+                .help("Choose how far back the charts show. Recording pauses when the panel closes.")
+            Text("Open Details & charts in a card to see recent activity.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }.padding(16)
     }
 
@@ -104,10 +108,17 @@ struct PanelView: View {
     }
 
     private func details<Content: View>(_ card: PanelCard, @ViewBuilder content: @escaping () -> Content) -> some View {
-        DisclosureGroup("Details & history", isExpanded: Binding(get: { expanded.contains(card) }, set: {
+        DisclosureGroup(card == .battery ? "Details" : "Details & charts", isExpanded: Binding(get: { expanded.contains(card) }, set: {
             if $0 { expanded.insert(card) } else { expanded.remove(card) }
         })) {
-            VStack(alignment: .leading, spacing: 12, content: content).padding(.top, 10)
+            VStack(alignment: .leading, spacing: 12) {
+                if card != .battery {
+                    Text("Readings are recorded while this panel is open. Gaps show pauses.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                content()
+            }.padding(.top, 10)
         }.font(.caption)
     }
 

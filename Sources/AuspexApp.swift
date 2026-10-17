@@ -30,7 +30,6 @@ struct AuspexApp: App {
             PanelView()
                 .environment(monitor)
                 .environment(panelPreferences)
-                .preferredColorScheme(monitor.appearance.colorScheme)
                 .onAppear { monitor.startActive() }
                 .onDisappear { monitor.goIdle() }
         } label: {
@@ -42,7 +41,6 @@ struct AuspexApp: App {
             SettingsView()
                 .environment(monitor)
                 .environment(panelPreferences)
-                .preferredColorScheme(monitor.appearance.colorScheme)
         }
     }
 }

@@ -95,7 +95,7 @@ That's it. `make install` copies an optimized build to `/Applications`.
 - **Settings** (in the panel footer): refresh interval, which stat shows inline in the menu
   bar (CPU %, RAM %, temperature, or icon only), card visibility/order, appearance (**Follow macOS**, **Light**, or **Dark**), and **Open at Login**.
 - **Refresh** all readings from the panel footer. CPU and network rates need the next sample after opening or waking.
-- Expand **Details & history** within a card. Choose **60 seconds** or **5 minutes** above the cards.
+- Open **Details & charts** within a card. **Chart time range** chooses how far back the charts show: **Last minute** or **Last 5 min**. Recording pauses while the panel is closed, so those periods appear as gaps.
 - In Settings, reorder/hide cards or restore the defaults. Memory and temperature appear first by default.
 - **Check for Updates** in Settings opens a newer stable release when available.
 - If the menu item is hidden, reopen Auspex to open Settings, then check macOS **System Settings → Menu Bar → Allow in the Menu Bar**. A crowded menu bar can also hide items.

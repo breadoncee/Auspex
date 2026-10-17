@@ -8,6 +8,6 @@ swiftc -D DEBUG -swift-version 6 -sdk "$(xcrun --show-sdk-path)" -target arm64-a
     -module-cache-path build/ModuleCache -external-plugin-path "$plugin_path" \
     -import-objc-header Sources/Bridging/IOHID-Bridging.h \
     Sources/Model/*.swift Sources/Collectors/*.swift Sources/Services/*.swift \
-    Sources/Views/*.swift Sources/Views/Components/*.swift Tests/VisualTests.swift \
+    Sources/Views/*.swift Sources/Views/Components/*.swift Tests/VisualTests.swift Tests/AppearanceTests.swift \
     -framework IOKit -framework ServiceManagement -o build/verification/visual-tests
 build/verification/visual-tests

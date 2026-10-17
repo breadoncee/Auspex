@@ -25,8 +25,7 @@ final class ReopenHandler: NSObject, NSApplicationDelegate {
 }
 
 struct ReopenSettingsContent: View {
-    @Environment(SystemMonitor.self) private var monitor
     var body: some View {
-        SettingsView().preferredColorScheme(monitor.appearance.colorScheme)
+        SettingsView()
     }
 }
