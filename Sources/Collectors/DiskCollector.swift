@@ -2,9 +2,9 @@
 //  DiskCollector.swift
 //  Auspex
 //
-//  Enumerates mounted volumes (internal + external) and reports capacity.
-//  Uses URLResourceValues so "available" matches Finder (counts purgeable
-//  space), unlike raw statfs block counts.
+//  Enumerates mounted volumes and preserves unavailable capacity readings.
+//  Finder-compatible available space includes purgeable storage. Read-only
+//  images and network volumes are identified separately from writable disks.
 //
 
 import Foundation
@@ -18,47 +18,61 @@ struct DiskCollector {
         .volumeIsRemovableKey,
         .volumeIsInternalKey,
         .volumeIsBrowsableKey,
+        .volumeIsReadOnlyKey,
+        .volumeIsLocalKey,
     ]
 
-    func collect() -> [DiskInfo] {
-        let fm = FileManager.default
-        guard let urls = fm.mountedVolumeURLs(
+    func collect() -> [DiskInfo] { collectReading() ?? [] }
+
+    /// nil means enumeration failed; an empty array means no browsable volumes.
+    func collectReading() -> [DiskInfo]? {
+        guard let urls = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: Array(keys),
             options: [.skipHiddenVolumes]
-        ) else { return [] }
+        ) else { return nil }
 
-        var disks: [DiskInfo] = []
-        for url in urls {
-            guard let values = try? url.resourceValues(forKeys: keys) else { continue }
-            // Skip non-browsable system volumes (e.g. the read-only system snapshot).
-            if values.volumeIsBrowsable == false { continue }
-
-            let total = UInt64(max(0, values.volumeTotalCapacity ?? 0))
-            guard total > 0 else { continue }
-
-            // `volumeAvailableCapacityForImportantUsage` is Int64 and may be 0
-            // on some virtual volumes; treat 0 as "full" rather than dropping it.
-            let available = min(total, UInt64(max(0,
-                values.volumeAvailableCapacityForImportantUsage
-                    ?? values.volumeAvailableCapacity.map(Int64.init) ?? 0)))
-
-            disks.append(
-                DiskInfo(
-                    url: url,
-                    name: values.volumeName ?? url.lastPathComponent,
+        let disks = urls.compactMap { url -> DiskInfo? in
+            let values = try? url.resourceValues(forKeys: keys)
+            // Hidden system snapshots are omitted. Missing metadata is retained
+            // as an unavailable reading rather than a fabricated full disk.
+            if values?.volumeIsBrowsable == false { return nil }
+            let total = UInt64(max(0, values?.volumeTotalCapacity ?? 0))
+            return DiskInfo(
+                url: url,
+                name: values?.volumeName ?? url.lastPathComponent,
+                total: total,
+                available: Self.availableBytes(
                     total: total,
-                    available: available,
-                    isRemovable: values.volumeIsRemovable ?? false,
-                    isInternal: values.volumeIsInternal ?? true
-                )
+                    important: values?.volumeAvailableCapacityForImportantUsage,
+                    basic: values?.volumeAvailableCapacity
+                ),
+                isRemovable: values?.volumeIsRemovable ?? false,
+                isInternal: values?.volumeIsInternal ?? false,
+                isReadOnly: values?.volumeIsReadOnly ?? false,
+                isLocal: values?.volumeIsLocal ?? true
             )
         }
+        return disks.sorted(by: Self.orderedBefore)
+    }
 
-        // Internal first, then by name for stable ordering.
-        disks.sort {
-            if $0.isInternal != $1.isInternal { return $0.isInternal && !$1.isInternal }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+    static func availableBytes(total: UInt64, important: Int64?, basic: Int?) -> UInt64? {
+        // Negative resource values are unknown, not zero free bytes. Prefer
+        // Finder's important-usage capacity, falling back only when unavailable.
+        let validImportant = important.flatMap { $0 >= 0 ? UInt64($0) : nil }
+        let validBasic = basic.flatMap { $0 >= 0 ? UInt64($0) : nil }
+        guard total > 0, let available = validImportant ?? validBasic else { return nil }
+        return min(total, available)
+    }
+
+    static func orderedBefore(_ lhs: DiskInfo, _ rhs: DiskInfo) -> Bool {
+        func rank(_ disk: DiskInfo) -> Int {
+            if disk.isLocal && !disk.isReadOnly && disk.isInternal { return 0 }
+            if disk.isLocal && !disk.isReadOnly { return 1 }
+            if disk.isLocal { return 2 }
+            return 3
         }
-        return disks
+        if rank(lhs) != rank(rhs) { return rank(lhs) < rank(rhs) }
+        let comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+        return comparison == .orderedSame ? lhs.url.path < rhs.url.path : comparison == .orderedAscending
     }
 }

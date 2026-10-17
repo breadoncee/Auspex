@@ -11,12 +11,25 @@ import SwiftUI
 
 @main
 struct AuspexApp: App {
-    @State private var monitor = SystemMonitor()
+    @NSApplicationDelegateAdaptor(ReopenHandler.self) private var reopenHandler
+    @State private var monitor: SystemMonitor
+    @State private var panelPreferences: PanelPreferences
+
+    init() {
+        let monitor = SystemMonitor()
+        let preferences = PanelPreferences()
+        _monitor = State(initialValue: monitor)
+        _panelPreferences = State(initialValue: preferences)
+        ReopenHandler.settingsContent = {
+            AnyView(ReopenSettingsContent().environment(monitor).environment(preferences))
+        }
+    }
 
     var body: some Scene {
         MenuBarExtra {
             PanelView()
                 .environment(monitor)
+                .environment(panelPreferences)
                 .preferredColorScheme(monitor.appearance.colorScheme)
                 .onAppear { monitor.startActive() }
                 .onDisappear { monitor.goIdle() }
@@ -28,6 +41,7 @@ struct AuspexApp: App {
         Settings {
             SettingsView()
                 .environment(monitor)
+                .environment(panelPreferences)
                 .preferredColorScheme(monitor.appearance.colorScheme)
         }
     }

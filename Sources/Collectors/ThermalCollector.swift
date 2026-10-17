@@ -18,7 +18,7 @@ final class ThermalCollector: @unchecked Sendable {
     private let kHIDUsage_AppleVendor_TemperatureSensor = 0x0005
 
     private var client: IOHIDEventSystemClient?
-    private var didAttemptInit = false
+    private var nextInitializationAttempt: TimeInterval = 0
 
     func collect() -> ThermalSnapshot {
         var snap = ThermalSnapshot()
@@ -41,8 +41,11 @@ final class ThermalCollector: @unchecked Sendable {
 
     private func ensureClient() -> IOHIDEventSystemClient? {
         if let client { return client }
-        if didAttemptInit { return nil }
-        didAttemptInit = true
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now >= nextInitializationAttempt else { return nil }
+        // Retry transient initialization failures, with at most one attempt per
+        // minute so unsupported hardware does not cause repeated expensive work.
+        nextInitializationAttempt = now + 60
 
         // Create/Copy functions return +1 (Unmanaged); take ownership so ARC
         // manages the lifetime thereafter.
@@ -60,7 +63,13 @@ final class ThermalCollector: @unchecked Sendable {
     private func readSensors() -> [TempSensor] {
         guard let client = ensureClient() else { return [] }
         guard let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient]
-        else { return [] }
+        else {
+            // A client that stops returning services may recover after wake.
+            // Recreate it after the same bounded retry interval.
+            self.client = nil
+            nextInitializationAttempt = ProcessInfo.processInfo.systemUptime + 60
+            return []
+        }
 
         // IOHIDEventFieldBase(type) == type << 16 (the macro isn't imported).
         let field = Int32(kIOHIDEventTypeTemperature << 16)

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-17
+
+### Added
+- Persistent panel card ordering and visibility, compact expandable details, temperature in the menu bar, and Activity Monitor shortcuts.
+- Timestamped 60-second/five-minute CPU, network, temperature, pressure and swap history, with gaps, shared network scale and accessible summaries.
+- On-demand Check for Updates using public GitHub release metadata; opens release notes without installing software.
+- Optional Developer ID signing and notarization packaging path, deterministic visual fixtures and a collection-performance harness. Default downloads remain ad-hoc signed.
+- Settings recovery when reopening the app, plus menu bar visibility help.
+
+### Changed
+- Memory emphasizes pressure alongside separate RAM and swap readings.
+- Writable local storage is separated from read-only/network reference volumes.
+- Optional collection slows during Low Power Mode or serious/critical thermal pressure.
+
+### Fixed
+- Unavailable pressure/capacity no longer becomes a fabricated normal/zero reading.
+- Per-metric freshness preserves dated last-good readings; failed samples cannot keep the panel falsely Live.
+- Rate baselines reset after idle metric changes; thermal initialization retries are bounded.
+
 ## [1.2.0] - 2026-10-17
 
 ### Added
@@ -59,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frugal polling: fast updates while open, a slow idle tick to keep the menu bar current, and full pause when the inline stat is hidden.
 - All metrics read via built-in macOS APIs — zero third-party dependencies.
 
-[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/breadoncee/Auspex/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.3.0
 [1.2.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.2.0
 [1.1.1]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.1
 [1.1.0]: https://github.com/breadoncee/Auspex/releases/tag/v1.1.0

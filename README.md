@@ -35,20 +35,23 @@ third-party dependencies), and collects readings on a background queue with boun
 
 ## Features
 
-- **CPU** — prominent overall load, expandable per-core bars, and a load sparkline.
-- **Memory** — app / wired / compressed RAM, live memory pressure, and disk-backed **Swap used** in both the overview tile and detailed breakdown. Swap is separate from the RAM percentage.
-- **Storage** — mounted volumes including external drives, with Finder-style available space where supported and a capacity fallback.
+- **CPU** — overall load, expandable per-core bars, timestamped history, and a shortcut to Activity Monitor.
+- **Memory** — pressure-first summary, RAM and disk-backed **Swap used**, with expandable app / wired / compressed details. Failed pressure queries stay unknown or visibly stale; swap is separate from RAM.
+- **Storage** — writable local storage shown first, with read-only images and network mounts in a separate reference list. Unknown capacity stays unavailable; real zero available space stays zero. Reclaimable-capacity estimates are labeled available.
 - **Network** — Wi-Fi/Ethernet throughput from 64-bit counters, with trend sparklines and observed traffic totals. VPN and peer-to-peer interfaces are excluded to avoid counting packets twice.
 - **Battery** — charge, charging state, health %, and cycle count (laptops only).
 - **Temperatures** — a prominent CPU/SoC average and hottest-sensor reading in °C, expandable individual sensors, and system thermal status.
-- **Custom menu bar mark** with an optional inline CPU/RAM %.
-- **Readable native UI** — CPU and memory overview, expandable details, persistent controls, light/dark appearance, VoiceOver labels, Reduce Motion and Reduce Transparency support.
-- **Frugal** — one shared timer with no sampling backlog; only the selected menu bar metric updates while closed. Icon-only mode pauses polling, and sleep pauses all collection.
+- **Custom menu bar mark** with optional inline CPU %, RAM %, or temperature. Stale values show a dash rather than appear live.
+- **Readable native UI** — compact cards with persistent ordering and visibility, expandable details, light/dark appearance, VoiceOver summaries, Reduce Motion and Reduce Transparency support.
+- **Short history** — real 60-second or five-minute windows for CPU, network, temperature, pressure and swap. Gaps mark pauses; network charts share a scale. History stays in memory and does not enable background recording.
+- **Honest freshness** — per-reading timestamps preserve dated last-good values after failures.
+- **Check for Updates** — checks public GitHub releases only when requested, then opens the release page; no automatic installation or third-party updater.
+- **Frugal** — one shared timer with no sampling backlog; only the selected menu bar metric updates while closed. Icon-only mode pauses polling, and sleep pauses all collection. Low Power Mode and elevated thermal pressure reduce optional update frequency.
 - **Open at login** via `SMAppService`.
 
 ## Requirements
 
-- **macOS 26 (Tahoe) or later**, including macOS 27 (Golden Gate). The app keeps the macOS 26 deployment target; this update was compiled with the macOS 26.2 SDK and checked on macOS 27.0.1.
+- **macOS 26 or later**, on Apple Silicon. Version 1.3.0 keeps the macOS 26 deployment target and was built with Xcode 27. Live checks were run on macOS 27.0.1; a separate macOS 26 hardware run remains desirable.
 - **Apple Silicon** (arm64).
 - To build: **Xcode 26+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`), or **Command Line Tools with a macOS 26+ SDK** using `make local`.
 
@@ -90,9 +93,12 @@ That's it. `make install` copies an optimized build to `/Applications`.
 
 - **Click** the menu bar pulse icon to open/close the panel.
 - **Settings** (in the panel footer): refresh interval, which stat shows inline in the menu
-  bar (CPU %, RAM %, or icon only), appearance (**Follow macOS**, **Light**, or **Dark**), and **Open at Login**.
+  bar (CPU %, RAM %, temperature, or icon only), card visibility/order, appearance (**Follow macOS**, **Light**, or **Dark**), and **Open at Login**.
 - **Refresh** all readings from the panel footer. CPU and network rates need the next sample after opening or waking.
-- Expand **Per-core usage**, **all volumes**, or **temperature sensors** for more detail.
+- Expand **Details & history** within a card. Choose **60 seconds** or **5 minutes** above the cards.
+- In Settings, reorder/hide cards or restore the defaults. Memory and temperature appear first by default.
+- **Check for Updates** in Settings opens a newer stable release when available.
+- If the menu item is hidden, reopen Auspex to open Settings, then check macOS **System Settings → Menu Bar → Allow in the Menu Bar**. A crowded menu bar can also hide items.
 - **Quit** from the panel footer.
 
 ## Building & packaging
@@ -121,7 +127,7 @@ make dist
 ```
 
 Then create a new GitHub Release and upload `dist/Auspex-<version>.zip`. Bump the version in
-`project.yml` (`MARKETING_VERSION`) and pass it through, e.g. `make dist VERSION=1.1.0`.
+`project.yml` (`MARKETING_VERSION`) and pass it through, e.g. `make dist VERSION=1.3.0`. See [signed distribution](docs/distribution.md) for the optional Developer ID/notarization flow; the default build remains ad-hoc signed.
 
 ## How it works
 
@@ -130,7 +136,7 @@ Everything is read with native macOS APIs — no dependencies:
 | Metric | API |
 |---|---|
 | Disk | `FileManager.mountedVolumeURLs` + `URLResourceValues` |
-| Memory | `host_statistics64` + `sysctl kern.memorystatus_vm_pressure_level` |
+| Memory | `host_statistics64` + pressure events / best-effort pressure sysctl + `vm.swapusage` |
 | CPU | `host_processor_info` (tick diffing, per core) |
 | Network | `getifaddrs` + `sysctl` / `ifmibdata` (64-bit per-interface counter diffing) |
 | Battery | IOKit power sources + `AppleSmartBattery` |
@@ -177,9 +183,14 @@ See [CHANGELOG.md](CHANGELOG.md) for the version history.
 make verify
 # Run outside restrictive tool sandboxes to require real mounted volumes:
 Tools/verify.sh --require-volumes --require-temperatures --require-swap
+# Full Xcode is required for the SwiftUI render harness:
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer Tools/verify-visuals.sh
+Tools/benchmark.sh --mode cpu --duration 60
 make local
 open build/Local/Auspex.app
 ```
+
+The regression harness also checks unknown pressure, read-only/unknown disk capacity, history retention/gaps, preference migration and update metadata/network failures. The visual harness renders deterministic light/dark fixtures; it does not replace a keyboard/VoiceOver audit.
 
 The regression harness checks memory accounting, 64-bit network counters, interface
 changes, counter resets, live swap usage and unavailable-query handling, unique sensor identities, CPU/battery/storage bounds, and

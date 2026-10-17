@@ -20,6 +20,7 @@ enum Thresholds {
 
     static func pressureColor(_ p: MemoryPressure) -> Color {
         switch p {
+        case .unknown: return .secondary
         case .normal: return .green
         case .warning: return .yellow
         case .critical: return .red

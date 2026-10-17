@@ -3,6 +3,7 @@ import ServiceManagement
 
 struct SettingsView: View {
     @Environment(SystemMonitor.self) private var monitor
+    @Environment(PanelPreferences.self) private var preferences
     @Environment(\.scenePhase) private var scenePhase
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginError: String?
@@ -26,8 +27,13 @@ struct SettingsView: View {
                 Picker("Menu bar reading", selection: $monitor.menuBarMetric) {
                     ForEach(MenuBarMetric.allCases) { Text($0.label).tag($0) }
                 }
-                Text("Show a live percentage beside the Auspex icon, or keep just the icon.")
+                Text("Show CPU, RAM or CPU / SoC temperature beside the Auspex icon, or keep just the icon.")
                     .font(.caption).foregroundStyle(.secondary)
+                Text("If the icon disappears, check that Auspex is allowed in the menu bar in System Settings. macOS can also hide items when space is limited.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Open Menu Bar Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.ControlCenter-Settings.extension") { NSWorkspace.shared.open(url) }
+                }
             } header: {
                 Label("Menu bar", systemImage: "menubar.rectangle")
             }
@@ -43,10 +49,32 @@ struct SettingsView: View {
                     Slider(value: $monitor.refreshInterval, in: 0.5...5, step: 0.5)
                         .accessibilityLabel("Refresh interval in seconds")
                 }
-                Text("Faster updates use more energy. When the panel is closed, only your menu bar reading updates every 3 seconds. Icon-only mode pauses polling. All polling pauses during sleep.")
+                Text("Faster updates use more energy. With the panel closed, only the selected menu bar reading updates, at most every 3 seconds. Low Power Mode and elevated system thermal pressure slow updates further. Icon-only mode pauses idle polling; all polling pauses during sleep.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: {
                 Label("Refresh & energy", systemImage: "arrow.clockwise")
+            }
+
+            Section {
+                Text("Show the readings you use most and move them into your preferred order. Expand a card in the panel for details and history.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(preferences.cards) { card in
+                    HStack(spacing: 12) {
+                        Toggle(card.title, isOn: Binding(get: { preferences.isVisible(card) }, set: { preferences.setVisible(card, visible: $0) }))
+                        Spacer(minLength: 8)
+                        Button { preferences.move(card, direction: -1) } label: { Image(systemName: "chevron.up") }
+                            .disabled(preferences.cards.first == card)
+                            .accessibilityLabel("Move \(card.title) up")
+                        Button { preferences.move(card, direction: 1) } label: { Image(systemName: "chevron.down") }
+                            .disabled(preferences.cards.last == card)
+                            .accessibilityLabel("Move \(card.title) down")
+                    }.controlSize(.small)
+                }
+                Text("Battery appears only on Macs with a battery. Hiding a card changes the panel layout; it does not change the collection schedule.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button("Restore default cards") { preferences.reset() }
+            } header: {
+                Label("Panel cards", systemImage: "rectangle.stack")
             }
 
             Section {
@@ -84,12 +112,14 @@ struct SettingsView: View {
                         monitor.refreshInterval = 1
                         monitor.menuBarMetric = .cpu
                         monitor.appearance = .system
-                    }.help("Reset appearance, refresh interval and menu bar reading to their defaults")
+                        preferences.reset()
+                    }.help("Reset appearance, refresh interval, menu bar reading and panel layout to their defaults")
                 }
+                UpdateSettingsView()
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 640)
+        .frame(width: 480, height: min(700, max(360, (NSScreen.main?.visibleFrame.height ?? 800) - 80)))
         .navigationTitle("Auspex Settings")
         .onAppear { syncLoginStatus() }
         .onChange(of: scenePhase) { _, phase in

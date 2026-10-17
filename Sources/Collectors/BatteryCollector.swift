@@ -17,25 +17,37 @@ struct BatteryCollector {
         var info = BatteryInfo()
 
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef],
-              let desc = sources.compactMap({ source in
-                  IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue()
-                    as? [String: Any]
-              }).first(where: { ($0[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType })
-        else {
-            return info   // no battery present
-        }
+              let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
+        else { return info }
 
-        // Only treat it as a battery if the type says so.
-        if let type = desc[kIOPSTypeKey] as? String, type != kIOPSInternalBatteryType {
+        var descriptions: [[String: Any]] = []
+        for source in sources {
+            guard let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue()
+                    as? [String: Any] else { return info }
+            descriptions.append(description)
+        }
+        info = Self.snapshot(from: descriptions)
+        if info.isAvailable && info.isPresent { enrichWithSmartBattery(&info) }
+        return info
+    }
+
+    /// nil represents a failed query; an empty source list is valid on desktops.
+    static func snapshot(from descriptions: [[String: Any]]?) -> BatteryInfo {
+        var info = BatteryInfo()
+        guard let descriptions,
+              descriptions.allSatisfy({ $0[kIOPSTypeKey] is String }) else { return info }
+        guard let desc = descriptions.first(where: {
+            ($0[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType
+        }) else {
+            info.isAvailable = true
             return info
         }
         info.isPresent = true
-
-        if let cur = desc[kIOPSCurrentCapacityKey] as? Int,
-           let max = desc[kIOPSMaxCapacityKey] as? Int, max > 0 {
-            info.percent = min(100, Swift.max(0, Int((Double(cur) / Double(max) * 100).rounded())))
-        }
+        guard let current = desc[kIOPSCurrentCapacityKey] as? Int,
+              let maximum = desc[kIOPSMaxCapacityKey] as? Int, maximum > 0,
+              current >= 0 else { return info }
+        info.isAvailable = true
+        info.percent = min(100, Int((Double(current) / Double(maximum) * 100).rounded()))
         info.isCharging = desc[kIOPSIsChargingKey] as? Bool ?? false
         if let state = desc[kIOPSPowerSourceStateKey] as? String {
             info.isPluggedIn = (state == kIOPSACPowerValue)
@@ -46,7 +58,6 @@ struct BatteryCollector {
             info.timeRemainingMinutes = mins
         }
 
-        enrichWithSmartBattery(&info)
         return info
     }
 

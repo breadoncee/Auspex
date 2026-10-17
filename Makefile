@@ -14,7 +14,9 @@ PROJECT   = Auspex.xcodeproj
 CONFIG   ?= Debug
 BUILD_DIR = build
 DIST_DIR  = dist
-VERSION  ?= 1.2.0
+VERSION  ?= 1.3.0
+SIGN_IDENTITY ?= -
+NOTARY_PROFILE ?=
 PRODUCT   = $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP_NAME).app
 RELEASE_PRODUCT = $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 
@@ -42,7 +44,12 @@ project: check-tools
 build: project
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) \
 	  -derivedDataPath $(BUILD_DIR) $(SIGN_FLAGS) build
-	codesign --force --sign - "$(PRODUCT)"
+	@if [ "$(SIGN_IDENTITY)" = "-" ]; then \
+	  codesign --force --sign - "$(PRODUCT)"; \
+	else \
+	  codesign --force --options runtime --timestamp --sign "$(SIGN_IDENTITY)" "$(PRODUCT)"; \
+	fi
+	codesign --verify --deep --strict "$(PRODUCT)"
 	@echo "\nBuilt: $(PRODUCT)"
 
 run: build
@@ -52,6 +59,7 @@ release:
 	$(MAKE) build CONFIG=Release
 
 dist: release
+	@if [ -n "$(NOTARY_PROFILE)" ]; then Tools/notarize.sh "$(RELEASE_PRODUCT)" "$(NOTARY_PROFILE)"; fi
 	@mkdir -p $(DIST_DIR)
 	@rm -f "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip" "$(DIST_DIR)/$(APP_NAME).zip"
 	ditto -c -k --keepParent "$(RELEASE_PRODUCT)" "$(DIST_DIR)/$(APP_NAME)-$(VERSION).zip"

@@ -38,7 +38,10 @@ print("pressure: \(m.pressure.label)")
 print("\n=== DISKS ===")
 for vol in d {
     let kind = vol.isInternal ? "internal" : (vol.isRemovable ? "removable" : "external")
-    print("\(vol.name) [\(kind)]: \(Fmt.bytes(vol.used)) used / \(Fmt.bytes(vol.total)) (\(vol.usedPercent)%), \(Fmt.bytes(vol.available)) free")
+    let used = vol.used.map(Fmt.bytes) ?? "unavailable"
+    let available = vol.available.map(Fmt.bytes) ?? "unavailable"
+    let percent = vol.usedPercent.map { "\($0)%" } ?? "unknown"
+    print("\(vol.name) [\(kind), \(vol.classificationLabel)]: \(used) used / \(Fmt.bytes(vol.total)) (\(percent)), \(available) available")
 }
 
 print("\n=== NETWORK ===")

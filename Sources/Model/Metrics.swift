@@ -34,27 +34,30 @@ struct MemorySnapshot: Equatable {
     /// Disk-backed swap currently in use; nil when the kernel query fails.
     /// This is separate from physical memory and is not included in `used`.
     var swapUsed: UInt64? = nil
-    var pressure: MemoryPressure = .normal
+    var pressure: MemoryPressure = .unknown
 
     var usedFraction: Double { total > 0 ? Double(used) / Double(total) : 0 }
     var usedPercent: Int { Int((usedFraction * 100).rounded()) }
 }
 
 enum MemoryPressure: Int, Equatable {
+    case unknown = 0
     case normal = 1
     case warning = 2
     case critical = 4
 
     init(rawLevel: Int32) {
         switch rawLevel {
+        case 1: self = .normal
         case 2: self = .warning
         case 4: self = .critical
-        default: self = .normal
+        default: self = .unknown
         }
     }
 
     var label: String {
         switch self {
+        case .unknown: return "Unavailable"
         case .normal: return "Normal"
         case .warning: return "Warning"
         case .critical: return "Critical"
@@ -69,18 +72,39 @@ struct DiskInfo: Identifiable, Equatable {
     var url: URL
     var name: String
     var total: UInt64
-    var available: UInt64
+    var available: UInt64?
     var isRemovable: Bool
     var isInternal: Bool
+    var isReadOnly: Bool = false
+    var isLocal: Bool = true
 
-    var used: UInt64 { total > available ? total - available : 0 }
-    var usedFraction: Double { total > 0 ? Double(used) / Double(total) : 0 }
-    var usedPercent: Int { Int((usedFraction * 100).rounded()) }
+    var used: UInt64? {
+        guard total > 0, let available else { return nil }
+        return total > available ? total - available : 0
+    }
+    var usedFraction: Double? { used.map { Double($0) / Double(total) } }
+    var usedPercent: Int? { usedFraction.map { Int(($0 * 100).rounded()) } }
+
+    var classificationLabel: String {
+        if isReadOnly { return "Read-only volume" }
+        if !isLocal { return "Network volume" }
+        if isInternal { return "Internal storage" }
+        if isRemovable { return "Removable storage" }
+        return "Local volume"
+    }
+
+    /// Read-only images can have zero free space by design; only writable
+    /// local storage with a known capacity should raise a fullness warning.
+    var shouldWarnAboutCapacity: Bool {
+        isLocal && !isReadOnly && (usedFraction.map { $0 >= 0.90 } ?? false)
+    }
 }
 
 // MARK: - Network
 
 struct NetworkSnapshot: Equatable {
+    var isReady: Bool = false
+    var isAvailable: Bool = false
     var interfaceCount: Int = 0
     /// Bytes per second.
     var downBytesPerSec: Double = 0
@@ -93,6 +117,7 @@ struct NetworkSnapshot: Equatable {
 // MARK: - Battery
 
 struct BatteryInfo: Equatable {
+    var isAvailable: Bool = false
     var isPresent: Bool = false
     var percent: Int = 0
     var isCharging: Bool = false

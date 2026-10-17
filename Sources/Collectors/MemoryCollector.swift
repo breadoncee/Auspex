@@ -32,7 +32,7 @@ struct MemoryCollector {
         guard kr == KERN_SUCCESS else { return snap }
 
         var pageSize: vm_size_t = 0
-        host_page_size(mach_host_self(), &pageSize)
+        guard host_page_size(mach_host_self(), &pageSize) == KERN_SUCCESS, pageSize > 0 else { return snap }
         let page = UInt64(pageSize)
         let wired = UInt64(stats.wire_count) * page
         let compressed = UInt64(stats.compressor_page_count) * page
@@ -59,9 +59,9 @@ struct MemoryCollector {
 
     /// `kern.memorystatus_vm_pressure_level`: 1 normal, 2 warn, 4 critical.
     private func pressureLevel() -> Int32 {
-        var level: Int32 = 1
+        var level: Int32 = 0
         var size = MemoryLayout<Int32>.size
         let result = sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0)
-        return result == 0 ? level : 1
+        return result == 0 && size == MemoryLayout<Int32>.size ? level : 0
     }
 }

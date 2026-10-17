@@ -9,6 +9,11 @@ struct RegressionTests {
 
     @MainActor
     static func main() async {
+        ReliabilityTests.run()
+        HistoryTests.run()
+        PreferencesTests.run()
+        do { try await UpdateTests.run() }
+        catch { fatalError("Update checks failed: \(error)") }
         var network = NetworkAccumulator()
         let large: UInt64 = 5_000_000_000
         let first = network.sample(["en0": .init(down: large, up: large)], at: 10)
@@ -77,7 +82,10 @@ struct RegressionTests {
         expect(battery.healthPercent.map { (0...100).contains($0) } ?? true, "Battery health must be bounded")
         print("PASS: battery bounds and nested health data (\(battery.healthPercent.map { "\($0)%" } ?? "unavailable"))")
         let disks = DiskCollector().collect()
-        expect(disks.allSatisfy { $0.available <= $0.total && $0.used + $0.available == $0.total }, "Disk capacity arithmetic must be consistent")
+        expect(disks.allSatisfy { disk in
+            guard let available = disk.available, let used = disk.used else { return disk.available == nil }
+            return available <= disk.total && used + available == disk.total
+        }, "Disk capacity arithmetic must be consistent")
         if ProcessInfo.processInfo.arguments.contains("--require-volumes") {
             expect(!disks.isEmpty, "Mounted volumes must be visible outside the sandbox")
         }

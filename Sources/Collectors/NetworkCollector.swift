@@ -35,11 +35,18 @@ struct NetworkAccumulator {
         previous = counters
         lastTime = now
         return NetworkSnapshot(
+            isReady: elapsed > 0,
+            isAvailable: true,
             interfaceCount: counters.count,
             downBytesPerSec: elapsed > 0 ? Double(down) / elapsed : 0,
             upBytesPerSec: elapsed > 0 ? Double(up) / elapsed : 0,
             totalDown: totalDown, totalUp: totalUp
         )
+    }
+
+    mutating func unavailableSnapshot() -> NetworkSnapshot {
+        resetBaseline()
+        return NetworkSnapshot(totalDown: totalDown, totalUp: totalUp)
     }
 }
 
@@ -51,15 +58,15 @@ final class NetworkCollector: @unchecked Sendable {
 
     func collect() -> NetworkSnapshot {
         guard let counters = readCounters() else {
-            resetBaseline()
-            return accumulator.sample([:], at: ProcessInfo.processInfo.systemUptime)
+            return accumulator.unavailableSnapshot()
         }
         return accumulator.sample(counters, at: ProcessInfo.processInfo.systemUptime)
     }
 
     private func readCounters() -> [String: InterfaceTraffic]? {
         var addresses: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&addresses) == 0, let first = addresses else { return nil }
+        guard getifaddrs(&addresses) == 0 else { return nil }
+        guard let first = addresses else { return [:] }
         defer { freeifaddrs(addresses) }
         var counters: [String: InterfaceTraffic] = [:]
         var pointer: UnsafeMutablePointer<ifaddrs>? = first
@@ -72,7 +79,7 @@ final class NetworkCollector: @unchecked Sendable {
             // interfaces so the same packet is never counted twice.
             guard name.hasPrefix("en") else { continue }
             let index = if_nametoindex(current.pointee.ifa_name)
-            guard index > 0 else { continue }
+            guard index > 0 else { return nil }
             var mib: [Int32] = [CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA,
                                 Int32(index), IFDATA_GENERAL]
             var data = ifmibdata()
@@ -80,7 +87,7 @@ final class NetworkCollector: @unchecked Sendable {
             let result = mib.withUnsafeMutableBufferPointer {
                 sysctl($0.baseAddress, u_int($0.count), &data, &size, nil, 0)
             }
-            guard result == 0 else { continue }
+            guard result == 0, size == MemoryLayout<ifmibdata>.size else { return nil }
             // getifaddrs' if_data only has 32-bit byte counters. ifmibdata
             // exposes 64-bit counters, including after >4 GB of traffic.
             counters[name] = InterfaceTraffic(down: data.ifmd_data.ifi_ibytes,
